@@ -239,6 +239,23 @@
       ],
       "cwd": "frontend",
       "port": 5612
+    },
+    {
+      "name": "app-drawer-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/app_drawer_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5613",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5613
     }
   ]
 }
