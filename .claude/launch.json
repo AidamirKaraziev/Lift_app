@@ -256,6 +256,23 @@
       ],
       "cwd": "frontend",
       "port": 5613
+    },
+    {
+      "name": "works-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/works_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5614",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5614
     }
   ]
 }
