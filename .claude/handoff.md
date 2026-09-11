@@ -21,8 +21,8 @@
 - Проверки: `make lint` чист, `make test` 1009, `flutter test test/navigation`
   4, `dart analyze lib test` 0 ошибок (961 инфо подрядчика). `pubspec.lock`
   не тронут.
-- Не закоммичено: весь дифф (`git status`) — navigation/, dev-превью, тест,
-  launch.json, план E03, roadmap (E01/E02 → Закрыто и archive/).
+- Закоммичено: 92536a9 (код и тест), a68b0dd (launch.json, план E03,
+  roadmap: E01/E02 → Закрыто и archive/); дерево чистое.
 
 ## Не доделано
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../helper/my_drawer/my_drawer.dart';
 import '../bloc/schedules_bloc.dart';
 import '../models/schedule_filters.dart';
 import '../repository/schedules_repository.dart';
@@ -65,7 +65,7 @@ class ScheduleSection extends StatelessWidget {
     this.initialFilters,
     this.bloc,
     this.opener,
-    this.drawer = const MyDrawer(),
+    this.drawer = const ShellDrawer(),
   }) : super(key: key);
 
   final ScheduleRole role;

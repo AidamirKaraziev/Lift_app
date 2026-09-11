@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../navigation/shell_drawer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,7 +7,6 @@ import '../../helper/class_colors.dart';
 import '../../helper/header/header.dart';
 import '../../helper/hints/hint_icon.dart';
 import '../../helper/hints/hints.dart';
-import '../../helper/my_drawer/my_drawer.dart';
 import '../../helper/my_user.dart';
 import 'bloc/works_report_bloc.dart';
 import 'models/works_report.dart';
@@ -26,7 +26,7 @@ import 'widgets/report_summary_view.dart';
 class ReportScreen extends StatelessWidget {
   const ReportScreen({
     Key? key,
-    this.drawer = const MyDrawer(),
+    this.drawer = const ShellDrawer(),
     this.repository = const WorksReportRepository(),
   }) : super(key: key);
 

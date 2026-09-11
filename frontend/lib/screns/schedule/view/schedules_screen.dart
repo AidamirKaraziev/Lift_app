@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../foreman/defects/defects_screen.dart';
 import '../../../helper/class_colors.dart';
-import '../../../helper/my_drawer/my_drawer.dart';
 import '../bloc/schedules_bloc.dart';
 import '../models/month_cell.dart';
 import '../models/schedule_filters.dart';
@@ -24,7 +24,7 @@ class SchedulesScreen extends StatefulWidget {
   const SchedulesScreen({
     Key? key,
     this.role = ScheduleRole.admin,
-    this.drawer = const MyDrawer(),
+    this.drawer = const ShellDrawer(),
     this.opener,
   }) : super(key: key);
 

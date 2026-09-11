@@ -11,18 +11,30 @@ import '../helper/session.dart';
 /// что видит — `roles`. «Выйти» — не раздел, а действие; оно живёт в
 /// `AppDrawer` отдельно, внизу.
 enum AppSection {
-  home('Главная', Icons.home_outlined),
-  objects('Объекты', Icons.radio_button_checked_outlined),
-  schedule('График', Icons.calendar_today),
-  works('Работы', Icons.list_alt),
-  reports('Отчёты', Icons.insert_chart_outlined),
-  companies('Компании', Icons.business_outlined),
-  employees('Сотрудники', Icons.people_outline);
+  home('Главная', Icons.home_outlined, 'home'),
+  objects('Объекты', Icons.radio_button_checked_outlined, 'objects'),
+  schedule('График', Icons.calendar_today, 'schedule'),
+  works('Работы', Icons.list_alt, 'works'),
+  reports('Отчёты', Icons.insert_chart_outlined, 'reports'),
+  companies('Компании', Icons.business_outlined, 'companies'),
+  employees('Сотрудники', Icons.people_outline, 'employees');
 
-  const AppSection(this.title, this.icon);
+  const AppSection(this.title, this.icon, this.slug);
 
   final String title;
   final IconData icon;
+
+  /// Имя раздела в адресе: `els23.ru/objects`. Латиница, потому что адрес
+  /// диктуют по телефону и вбивают руками.
+  final String slug;
+
+  /// Раздел по имени из адреса; `null` — такого раздела нет.
+  static AppSection? bySlug(String slug) {
+    for (final AppSection s in values) {
+      if (s.slug == slug) return s;
+    }
+    return null;
+  }
 
   /// Роли, которым раздел показывается. Пока оба бургера сходятся в один,
   /// админ и прораб видят всё одинаково — таково решение E03.

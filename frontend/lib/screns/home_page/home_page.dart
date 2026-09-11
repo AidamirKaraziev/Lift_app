@@ -13,23 +13,34 @@ import 'package:els/screns/task/view/task_screen.dart';
 import 'package:els/screns/user/user_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/company_bloc/company_bloc.dart';
 import '../../helper/class_colors.dart';
-import '../../helper/my_drawer/my_drawer.dart';
+import '../../navigation/app_router.dart';
+import '../../navigation/app_section.dart';
+import '../../navigation/section_index.dart';
+import '../../navigation/shell_drawer.dart';
+import '../../navigation/works_section.dart';
 import '../companies/view/companies_screen_archive.dart';
 import '../companies/view/company_page_archive.dart';
 import '../employee/view/employee_archive_page.dart';
 import '../employee/view/employees_archive_screen.dart';
 import '../employee/view/employees_screen.dart';
 import '../employee/view/employee_page.dart';
-import '../../bloc/user_bloc/user_bloc.dart';
 import '../object/view/object_page.dart';
 import '../object/view/object_page_archive.dart';
 import '../object/view/object_screen_archive.dart';
 import '../task/view/archive/task_page_archive.dart';
 import '../task/view/archive/task_screen_archive.dart';
+import '../in_progress_works/widgets/prime_work_counts.dart';
+import '../submitted_works/repository/submitted_works_repository.dart';
+import '../submitted_works/view/submitted_works_screen.dart';
 import '../task/view/task_page.dart';
 
-///Главная User
+///Главная User — оболочка админа.
+///
+/// Раздел выбирается маршрутом ([appRouter]), экран внутри раздела — по
+/// индексу подрядчика (`IntTest.indexScreens` + `myStream`), пока детальные
+/// экраны не переведены (S08). Таблица соответствия — [SectionIndex.admin].
 
 ///Это временно ====================================================
 StreamController myStream = StreamController.broadcast();
@@ -61,6 +72,82 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const SectionIndex _index = SectionIndex.admin;
+
+  StreamSubscription<dynamic>? _screens$;
+
+  @override
+  void initState() {
+    super.initState();
+    // Внутренний переход (карточка объекта, архив) приходит по потоку:
+    // перерисовываемся и сообщаем маршрутизатору раздел, чтобы адрес и
+    // подсветка в бургере не отставали. Профиль — ничейный: раздел не трогаем.
+    _screens$ = myStream.stream.listen((_) {
+      if (!mounted) return;
+      final AppSection? owner = _index.sectionOf(IntTest.indexScreens);
+      if (owner != null) appRouter.showSection(owner);
+      setState(() {});
+    });
+    appRouter.addListener(_onRoute);
+    _enter(appRouter.section);
+    primeWorkCounts();
+  }
+
+  @override
+  void dispose() {
+    _screens$?.cancel();
+    appRouter.removeListener(_onRoute);
+    _scheduleBloc?.close();
+    super.dispose();
+  }
+
+  int _handledTap = appRouter.tapSerial;
+
+  /// Маршрут сменился. Тап по бургеру всегда ведёт к корневому экрану
+  /// раздела — так из карточки возвращаются к списку. Адрес из браузера
+  /// («назад», набранный руками) меняет экран, только если раздел другой:
+  /// свой раздел маршрутизатор узнаёт от нас же и перерисовки не стоит.
+  void _onRoute() {
+    if (!mounted) return;
+    final AppSection section = appRouter.section;
+    final bool tapped = appRouter.tapSerial != _handledTap;
+    _handledTap = appRouter.tapSerial;
+    if (!tapped && _index.sectionOf(IntTest.indexScreens) == section) return;
+    _enter(section);
+  }
+
+  /// Открыть раздел с корневого экрана — то, что делали пункты `MyDrawer`.
+  void _enter(AppSection section) {
+    switch (section) {
+      case AppSection.objects:
+        getListObjectArchive();
+        getAllListOfObjects();
+        break;
+      case AppSection.works:
+        // Число могло устареть, пока сидели в другом разделе: механик
+        // закрывает заявки не спрашивая.
+        const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
+        break;
+      case AppSection.companies:
+        final CompanyState state = context.read<CompanyBloc>().state;
+        if (state is CompanyGetState) {
+          getCompany = state.listGetCompany;
+          dataCompany = state.listGetCompany;
+        }
+        break;
+      default:
+        break;
+    }
+    _show(_index.rootOf(section), title: section.title);
+  }
+
+  /// Показать экран по индексу — тем же путём, каким ходят экраны подрядчика.
+  void _show(int index, {String? title}) {
+    if (title != null) IntTest.myTitle = title;
+    IntTest.indexScreens = index;
+    myStream.add(index);
+  }
+
   /// Блок ленты «Графиков». Живёт у оболочки, а не внутри раздела: разделы
   /// стоят в дереве одной позицией, и уход в «Заявки» выносит «Графики»
   /// оттуда целиком. Блок внутри раздела умирал бы вместе с ними, и человек,
@@ -71,12 +158,6 @@ class _HomePageState extends State<HomePage> {
   /// одному участку обязаны дать чистую ленту, а не то, что человек успел
   /// нафильтровать внутри между ними.
   int _scheduleRequests = 0;
-
-  @override
-  void dispose() {
-    _scheduleBloc?.close();
-    super.dispose();
-  }
 
   /// Экран по индексу оболочки.
   ///
@@ -136,85 +217,75 @@ class _HomePageState extends State<HomePage> {
     ///Задачи 7
     const TaskScreen(), ///
 
-    ///Охрана Труда 8
+    ///Охрана Труда — снят, слота нет: дальше номера идут без пропуска
     // const WorksScreen(),
 
-    ///Окно Юзера 9
+    ///Окно Юзера 8
     const MyProfile(),
 
-    ///Окно выбранной Компании 10
+    ///Окно выбранной Компании 9
     const CompanyPage(),
 
-    ///Окно выбранного Обьекта 11
+    ///Окно выбранного Обьекта 10
     const ObjectPage(),
 
-    ///Окно выбранного Юзера 12
+    ///Окно выбранного Юзера 11
     const OpenViewEmployee(),
 
-    ///  13 — экран графика подрядчика снят, слот держит нумерацию
+    ///  12 — экран графика подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
-    /// Окно выбранной задачи 14
+    /// Окно выбранной задачи 13
     const TaskPage(),
-    ///Окно Test 15 — экран снят, слот держит нумерацию
+    ///Окно Test 14 — экран снят, слот держит нумерацию
     const SizedBox.shrink(),
-    ///Окно Архив сотрудники 16
+    ///Окно Архив сотрудники 15
      EmployeesArchiveScreen(),
-    ///Окно Архив выбранного сотрудника 17
+    ///Окно Архив выбранного сотрудника 16
     const OpenViewEmployeeArchive(),
-    ///Окно Архив Компании 18
+    ///Окно Архив Компании 17
     const CompaniesScreenArchive(),
-    ///Окно Архив выбранной компании 19
+    ///Окно Архив выбранной компании 18
     const CompanyPageArchive(),
-    ///Окно Архив списка объектов 20
+    ///Окно Архив списка объектов 19
     const ObjectScreenArchive(),
-    ///Окно Архив выбранного объекта 21
+    ///Окно Архив выбранного объекта 20
     const ObjectPageArchive(),
-    ///Окно Архив Задач 22
+    ///Окно Архив Задач 21
     const TaskScreenArchive(),
-    ///Окно Архив выбранной задачи 23
+    ///Окно Архив выбранной задачи 22
     const TaskPageArchive(),
+
+    /// Лента сданных работ 23 — та же, что у прораба: вкладка «Сданные»
+    const SubmittedWorksScreen(drawer: ShellDrawer()),
   ];
+
+  /// Тело оболочки: вкладки «Работ» поверх одного из старых экранов, иначе
+  /// экран по индексу как есть.
+  Widget _body(int index) {
+    final int? tab = _index.worksTabOf(index);
+    if (tab == null) return _screenAt(index);
+    return WorksSection(
+      tabs: _index.worksTabs,
+      selected: tab,
+      onSelect: (int i) => _show(_index.worksTabs[i].index),
+      child: _screenAt(index),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
-    return BlocBuilder<UserBloc, UserState>(
-      builder: (context, state) {
-        return Scaffold(
-          body: Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    ///Боковое меню
-                    if (size.width > 1350)
-                      const Expanded(
-                        flex: 2,
-                        child: MyDrawer(),
-                      ),
-                    /// Body
-                    Expanded(
-                      flex: 8,
-                      child: Column(
-                        children: [
-                          /// Body
-                          StreamBuilder(
-                            stream: myStream.stream,
-                            builder: (context, ind) => Expanded(
-                              flex: 9,
-                              child: _screenAt(IntTest.indexScreens),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Scaffold(
+      body: Row(
+        children: <Widget>[
+          ///Боковое меню
+          if (size.width > 1350)
+            const Expanded(flex: 2, child: ShellDrawer()),
+
+          /// Body
+          Expanded(flex: 8, child: _body(IntTest.indexScreens)),
+        ],
+      ),
     );
   }
 }

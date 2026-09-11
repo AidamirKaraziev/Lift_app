@@ -1,9 +1,9 @@
 import 'package:els/foreman/task_foreman/task_screen_foreman.dart';
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import 'package:intl/intl.dart';
 import '../../../../helper/class_colors.dart';
 import '../../../../helper/header/header.dart';
-import 'package:els/foreman/drawer_foreman.dart';
 import '../../../../helper/my_user.dart';
 import '../../../screns/companies/view/companies_screen.dart';
 import '../../../screns/employee/widgets/topButton.dart';
@@ -64,7 +64,7 @@ class _TaskScreenCompletedForemanState extends State<TaskScreenCompletedForeman>
       builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
         return Scaffold(
           key: myOpenDrawer,
-          drawer: const DrawerForeman(),
+          drawer: const ShellDrawer(),
           body: Container(
             color: ColorApp.myColorTransparent,
             child: Column(

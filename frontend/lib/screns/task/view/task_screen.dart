@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:els/helper/api_config.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import 'package:intl/intl.dart';
 import '../../../helper/class_colors.dart';
 import '../../../helper/header/header.dart';
-import '../../../helper/my_drawer/my_drawer.dart';
 import '../../../helper/my_user.dart';
 import '../../companies/view/companies_screen.dart';
 import '../../employee/widgets/topButton.dart';
@@ -167,7 +167,7 @@ class _TaskScreenState extends State<TaskScreen> {
       builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
         return Scaffold(
           key: myOpenDrawer,
-          drawer: const MyDrawer(),
+          drawer: const ShellDrawer(),
           body: Container(
             color: ColorApp.myColorTransparent,
             child: Column(

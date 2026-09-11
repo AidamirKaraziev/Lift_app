@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../navigation/shell_drawer.dart';
 import '../../screns/companies/widgets/add_companies.dart';
 import '../../screns/employee/widgets/add_employee.dart';
 import '../../screns/home_page/home_page.dart';
 import '../../screns/object/widgets/add_object.dart';
 import '../../screns/object/widgets/editing_object.dart';
 import '../class_colors.dart';
-import '../my_drawer/my_drawer.dart';
 import '../my_user.dart';
 
 ///Header
@@ -25,7 +25,7 @@ class _MyHeaderState extends State<MyHeader> {
     final Size size = MediaQuery.of(context).size;
     return Scaffold(
       key: myOpenDrawer,
-      drawer: const MyDrawer(),
+      drawer: const ShellDrawer(),
       backgroundColor: Colors.white,
       body: Padding(
         padding: EdgeInsets.symmetric(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../navigation/shell_drawer.dart';
 import '../../helper/class_colors.dart';
 import '../../helper/header/header.dart';
 import '../../helper/hints/start_here_card.dart';
-import '../../helper/my_drawer/my_drawer.dart';
 import '../../helper/my_user.dart';
 import '../employee/view/employees_screen.dart';
 import '../home_page/home_page.dart';
@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final Size size = MediaQuery.of(context).size;
     return Scaffold(
       key: myOpenDrawer,
-      drawer: const MyDrawer(),
+      drawer: const ShellDrawer(),
       body: Container(
         color: ColorApp.myColorTransparent,
         child: !Responsive.isMobile(context)
