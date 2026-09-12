@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../helper/class_colors.dart';
 import '../models/work_item.dart';
 import 'work_kind_badge.dart';
+import 'work_row_actions.dart';
 import 'work_stub.dart';
 
 /// Строка ленты «Работы»: объект и адрес · задание · исполнитель · вид ·
@@ -28,6 +29,9 @@ class WorkRowTile extends StatelessWidget {
     required this.item,
     required this.now,
     this.onTap,
+    this.onAssign,
+    this.onCall,
+    this.onReview,
   }) : super(key: key);
 
   final WorkItem item;
@@ -37,6 +41,13 @@ class WorkRowTile extends StatelessWidget {
   final DateTime now;
 
   final VoidCallback? onTap;
+
+  /// Быстрые действия последней колонкой ([WorkRowActions]). Пустые — колонка
+  /// остаётся, кнопки не нажимаются: в тесте и превью без обработчиков
+  /// строка не должна прыгать по ширине.
+  final VoidCallback? onAssign;
+  final VoidCallback? onCall;
+  final VoidCallback? onReview;
 
   static const double kWideLayout = 960;
 
@@ -71,9 +82,9 @@ class WorkRowTile extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(flex: 30, child: _object()),
         const SizedBox(width: 16),
-        Expanded(flex: 32, child: _task()),
+        Expanded(flex: 28, child: _task()),
         const SizedBox(width: 16),
-        Expanded(flex: 16, child: _performer()),
+        Expanded(flex: 20, child: _performer()),
         const SizedBox(width: 16),
         SizedBox(
           width: 90,
@@ -88,7 +99,26 @@ class WorkRowTile extends StatelessWidget {
         SizedBox(width: 104, child: _when(alignEnd: true)),
         const SizedBox(width: 16),
         SizedBox(width: 108, child: _objectType(alignEnd: true)),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: WorkRowActions.width,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _actions(compact: false),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _actions({required bool compact}) {
+    return WorkRowActions(
+      item: item,
+      now: now,
+      compact: compact,
+      onAssign: onAssign,
+      onCall: onCall,
+      onReview: onReview,
     );
   }
 
@@ -122,13 +152,17 @@ class WorkRowTile extends StatelessWidget {
             _when(),
           ],
         ),
-        if (item.objectType != null) ...<Widget>[
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerRight,
-            child: _objectType(alignEnd: true),
-          ),
-        ],
+        const SizedBox(height: 4),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: item.objectType == null
+                  ? const SizedBox.shrink()
+                  : _objectType(),
+            ),
+            _actions(compact: true),
+          ],
+        ),
       ],
     );
   }

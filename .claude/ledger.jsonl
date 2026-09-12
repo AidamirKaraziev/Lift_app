@@ -12,3 +12,5 @@
 {"date": "2026-09-11", "epic": "E02", "stage": "S06 проверить на собранном стеке и убрать замещённый код", "area": "front+infra", "status": "закрыт", "session": "506068fd", "commits": ["6c48bf3"]}
 {"date": "2026-09-11", "epic": "E03", "stage": "S01 сверстать единый бургер по схеме разделов", "area": "front+design", "status": "закрыт", "session": "b82dce86", "commits": ["92536a9"]}
 {"date":"2026-09-11","epic":"E03","stage":"S02 перевести оболочки админа и прораба на go_router","area":"front","status":"закрыт","session":"23ba3a4e","commits":["eb43063"]}
+{"date":"2026-09-11","epic":"E03","stage":"S03 сверстать экран «Работы» на фикстуре","area":"front+design","status":"закрыт","session":"5c1617d7","commits":[]}
+{"date":"2026-09-12","epic":"E03","stage":"S03b улучшить окно «Работы» на фикстуре","area":"front+design","status":"закрыт","session":"65a755f7","commits":[]}

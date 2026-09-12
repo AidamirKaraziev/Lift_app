@@ -1,80 +1,80 @@
 ---
-этап: E03·S02 — оболочки админа и прораба на маршрутах
+этап: E03·S03b — улучшения окна «Работы» на фикстуре
 статус: закрыт
-дата: 2026-09-11
+дата: 2026-09-12
 план: .claude/plan/E03-edinaya-navigatsiya.md
 ---
 
-# Передача: обе оболочки ходят по маршрутам с одним бургером, следующий — S03 макет экрана «Работы»
+# Передача: улучшения «Работ» утверждены глазами, следующий — ручка S04
 
 ## Сделано и проверено
 
-- Раздел выбирается адресом: `lib/navigation/app_router.dart` (Navigator 2.0,
-  без пакетов) + `app_route.dart` (парсер `/home … /employees`, `/login`,
-  `/app`). `main.dart` — `MaterialApp.router`, path-адреса без `#`,
-  `<base href="/">` в `web/index.html` (без него Flutter не стартует).
-- Обе оболочки (`screns/home_page/home_page.dart`, `foreman/home_foreman.dart`)
-  рисуют `ShellDrawer` (`lib/navigation/shell_drawer.dart` — `AppDrawer` из
-  глобалей, без параметров); в 22 экранах `drawer: MyDrawer()/DrawerForeman()`
-  заменён на `ShellDrawer()`.
-- Индекс ↔ раздел: `lib/navigation/section_index.dart` — таблицы по ролям
-  (фактические позиции списков, комментарии админа были сбиты на 1 с 8-го).
-  Детальные экраны по-прежнему на `IntTest.index*` + `myStream`; оболочка
-  сообщает раздел в `appRouter.showSection`, тап в бургере — `appRouter.goTo`
-  (счётчик `tapSerial` отличает тап от смены адреса).
-- «Работы» = `lib/navigation/works_section.dart`: вкладки Задачи · Выполненные ·
-  Сданные у обеих ролей (админу лента сданных добавлена слотом 23), возврат
-  из карточки — на ту же вкладку. Таблетки `WorkCountsChips` на «Работы» у
-  обеих ролей; первое значение — `primeWorkCounts()`.
-- Профиль админа: `_profileIndex[admin]` 9 → 8 — аватарка открывала карточку
-  компании.
-- Проверено на `make up` админом и прорабом: все пункты, адреса, «назад»
-  браузера, карточки, вкладки, профиль, `/app`, выход, вход с `/companies`.
-- `make lint` чист · `make test` 1009 · `flutter test` 520 (17 навигации) ·
-  `dart analyze` 0 ошибок · `flutter build web` собран · коммит `eb43063`.
+- `lib/screns/works/`: `WorkAttention` (три причины: не назначена, стадия
+  затянулась, пауза дольше часа — пороги из `WorkTiming`), `WorkEmployee`
+  (должность + участок), в `WorkItem` — `section`, `reviewed`, `copyWith`.
+- `WorkFilters`: `section`, `performer`, `mine`, `attention`, `sort`;
+  `matches(item, now:, mySections:)`. `WorkCounts.byAttention`.
+- `WorksFeed`: `attentionCount`, `sections`, `performers`, `employees`,
+  `mySections`. `WorksRepository.assign(item, who)` и `review(item)`.
+- Виджеты: `WorkSummaryBar` (куски сводки — фильтры, переключатель порядка),
+  третий ряд чипсов (выпадашки «Участок/Механик», «Мои участки»),
+  `WorkGroupHeader`, `WorkRowActions` («Назначить» всегда, «позвонить /
+  проверил» при наведении, на телефоне — «⋯»), диалог `_AssignDialog`
+  с «Мои механики / Остальные», иконкой должности и участком.
+- «Сбросить всё» — от одного условия.
+- Утверждено глазами 12.09 на `works-preview` (порт 5614): сводка, назначение
+  (1042 → принята), «проверил», участок «Юг», «Мои участки», телефон 375.
+- `flutter test` 528 · `dart analyze lib/screns/works lib/dev` 0 ·
+  `make lint` чист. Не закоммичено: handoff/план/ledger и весь код S03b.
 
 ## Не доделано
 
-- Заголовок в шапке старых экранов — их собственный («Обьекты», «Задачи»),
-  не название раздела; уйдёт вместе с экранами в S05/S08.
-- «Главная» прораба — админский `HomeScreen` как есть (все ручки статистики
-  ответили 200); свои данные — S06.
-- `helper/my_drawer/my_drawer.dart`, `foreman/drawer_foreman.dart` живы, но не
-  подключены — снос в S08. Дисп. `application_screen_completed.dart` всё ещё
-  на `MyDrawer` (вне E03).
+- Тестов на новое нет (сводка, порядок, «проверил», диалог) — старые 8 в
+  `test/works/` зелёные. Написать до подключения к API в S05.
+- «Позвонить» показывает снэкбар: телефона механика в ленте нет — S04.
+- `flutter build web` в этой сессии не гонялся.
 
 ## Следующий этап
 
-**Цель.** S03: экран «Работы» на фикстуре — одна лента заявок и актов.
+**Цель.** S04 — `GET /work/feed`: заявки и акты одной ручкой с полями под
+ленту и её улучшения.
 
-**Готово, когда.** Пилюля статуса (новая · принята · в работе · сдана ·
-проблема), чипсы по статусу и виду со счётчиками, поиск по объекту, «Архив»
-как фильтр; стиль как у экрана графика из E01; набросок утверждён глазами.
+**Готово, когда.** Ручка отдаёт всё со списка ниже с курсором и
+`updated_since`; старые `/order/all`, `/work/in-progress`, `/work/submitted`
+живы и `deprecated`; `make test` и `make lint` чисты.
 
 ## Первые шаги
 
-1. Кадр макета: спросить, есть ли в `~/els-figma/` кадр «Работы»; нет —
-   набросок по образцу `lib/screns/schedule/view/schedules_screen.dart`
-   (стиль E01) и `lib/screns/submitted_works/view/` (строка сданной работы).
-2. Dev-превью по образцу `lib/dev/schedules_preview.dart` + конфиг в
-   `.claude/launch.json` (следующий порт 5614).
-3. Статусы и виды брать из `backend/src/api/api_v1/endpoints/submitted_works.py`
-   (`outcome`, `kind`) и `in_progress_works.py` — ручка S04 их объединит.
+1. Поля строки: `status` одним словом (fresh/accepted/running/submitted/
+   problem), `act_title`, `object_type`, `accepted_at`, `paused_at`,
+   `has_defect`, `comment`, `is_actual`, `section` (из `division` объекта
+   или исполнителя — решить), `reviewed`, `performer_phone`.
+2. Параметры: `status`, `kind`, `search`, `only_archived`
+   (`ArchiveView.ARCHIVED`, `backend/src/core/archiving.py`), `section`,
+   `performer_id`, `mine`, `attention`, `sort=attention|updated`, курсор.
+3. В ответе справочники: `sections`, `employees` (имя, `working_specialty`,
+   `division`) — под выпадашки и диалог назначения; `my_sections` прораба.
+4. Действия: `POST .../assign` и `POST .../review` — контракт под
+   `WorksRepository.assign/review`; `reviewed` сбрасывать при смене статуса.
+5. Правило причин внимания — `frontend/lib/screns/works/models/work_attention.dart`;
+   на бэке считать так же или отдавать даты и оставить фронту.
 
 ## Не трогать
 
-- `lib/navigation/*` — принят глазами; `WorksSection` заменится целиком в S05.
-- `screns/report/*`, старый график, экраны механика и диспетчера.
-- `pubspec.yaml`/`.lock` — `flutter_web_plugins` импортирован транзитивно
-  намеренно, см. комментарий в `main.dart`.
+- `lib/navigation/*`, `WorksSection` — замена в S05.
+- `submitted_works/*`, `in_progress_works/*` — из них только `WorkKind`.
+- `pubspec.yaml`/`.lock`; `flutter pub get` не запускать.
 
 ## Уточнить перед стартом
 
-- Есть ли кадр «Работы» в Figma или верстаем набросок?
-- Один экран для обеих ролей или у прораба свои фильтры (свои участки)?
+- Участок работы — от объекта или от исполнителя? В базе `division` есть у
+  пользователя; у объекта — проверить.
+- Сортировку «сначала требуют внимания» считает бэк или фронт по датам?
 
 ## Ссылки
 
-- `.claude/plan/E03-edinaya-navigatsiya.md` — 8 этапов, S01–S02 закрыты.
-- `frontend/lib/navigation/section_index.dart` — какие индексы у каких разделов.
-- `frontend/lib/navigation/app_router.dart` — контракт маршрутизатора.
+- `frontend/lib/screns/works/repository/works_repository.dart` — контракт,
+  под который пишется ручка.
+- `frontend/lib/screns/works/repository/fixture_works_repository.dart` —
+  эталон поведения: порядок, счётчики, assign/review.
+- `backend/src/models/universal_user.py` — `working_specialty`, `division`.

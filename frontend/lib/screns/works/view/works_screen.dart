@@ -6,10 +6,12 @@ import '../../../helper/class_colors.dart';
 import '../../../navigation/shell_drawer.dart';
 import '../../schedule/view/schedule_section.dart' show scheduleShowsLeading;
 import '../models/work_counts.dart';
+import '../models/work_employee.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
 import '../repository/works_repository.dart';
 import '../widgets/work_filter_chips.dart';
+import '../widgets/work_group_header.dart';
 import '../widgets/work_row_tile.dart';
 
 /// Экран «Работы»: заявки и акты ТО одной лентой.
@@ -109,6 +111,116 @@ class _WorksScreenState extends State<WorksScreen> {
     _load();
   }
 
+  /// Быстрое действие: репозиторий меняет строку, лента перечитывается.
+  /// Пока едет — заслонка, как при смене отбора: строка не должна
+  /// «мигнуть» старым состоянием после нажатия.
+  Future<void> _act(Future<void> Function() action, String done) async {
+    setState(() => _loading = true);
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Не получилось, повторите')));
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(done), duration: const Duration(seconds: 2)),
+      );
+    await _load();
+  }
+
+  Future<void> _assign(WorkItem item) async {
+    final WorksFeed? feed = _feed;
+    final String? who = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) => _AssignDialog(
+        item: item,
+        employees: feed?.employees ?? const <WorkEmployee>[],
+        mySections: feed?.mySections ?? const <String>{},
+      ),
+    );
+    if (who == null) return;
+    await _act(
+      () => widget.repository.assign(item, who),
+      '${item.number} назначена: $who',
+    );
+  }
+
+  /// Телефона у механика в ленте пока нет — он придёт с ручкой S04. Пока
+  /// действие честно говорит, кому звонить, и не притворяется звонком.
+  void _call(WorkItem item) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Позвонить: ${item.performer} — номер появится в S04'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  /// Лента с заголовками блоков при порядке «сначала требуют внимания».
+  ///
+  /// Заголовки — обычные элементы списка, а не `SliverList` с шапками: их
+  /// два, и лента одна. Разделитель перед заголовком не рисуется — у него
+  /// свой серый фон, и линия над ним читалась бы как двойная.
+  Widget _list(WorksFeed feed) {
+    final bool grouped =
+        _filters.sort == WorkSort.attention && feed.items.isNotEmpty;
+    final int urgent = feed.attentionCount;
+    final int rest = feed.items.length - urgent;
+
+    final List<Widget> rows = <Widget>[];
+    for (int i = 0; i < feed.items.length; i++) {
+      if (grouped && i == 0) {
+        rows.add(
+          urgent > 0
+              ? WorkGroupHeader(
+                  title: 'Требуют внимания',
+                  count: urgent,
+                  urgent: true,
+                )
+              : WorkGroupHeader(title: 'Остальные', count: rest),
+        );
+      } else if (grouped && i == urgent) {
+        rows.add(WorkGroupHeader(title: 'Остальные', count: rest));
+      } else if (i > 0) {
+        rows.add(
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: ColorApp.myColorGrayBorder,
+          ),
+        );
+      }
+      final WorkItem item = feed.items[i];
+      rows.add(
+        WorkRowTile(
+          item: item,
+          now: _now,
+          onTap: widget.onOpen == null ? null : () => widget.onOpen!(item),
+          onAssign: () => _assign(item),
+          onCall: () => _call(item),
+          onReview: () => _review(item),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) => rows[index],
+    );
+  }
+
+  Future<void> _review(WorkItem item) =>
+      _act(() => widget.repository.review(item), '${item.number} — проверено');
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,6 +241,8 @@ class _WorksScreenState extends State<WorksScreen> {
           WorkFilterChips(
             filters: _filters,
             counts: _feed?.counts ?? WorkCounts.empty,
+            sections: _feed?.sections ?? const <String>[],
+            performers: _feed?.performers ?? const <String>[],
             onChanged: _onFiltersChanged,
           ),
           Expanded(child: _body()),
@@ -177,31 +291,139 @@ class _WorksScreenState extends State<WorksScreen> {
             color: ColorApp.myColorWhite,
             borderRadius: BorderRadius.circular(5),
           ),
-          child: ListView.separated(
-            itemCount: feed.items.length,
-            separatorBuilder: (BuildContext context, int index) =>
-                const Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: ColorApp.myColorGrayBorder,
-                ),
-            itemBuilder: (BuildContext context, int index) {
-              final WorkItem item = feed.items[index];
-              return WorkRowTile(
-                item: item,
-                now: _now,
-                onTap: widget.onOpen == null
-                    ? null
-                    : () => widget.onOpen!(item),
-              );
-            },
-          ),
+          child: _list(feed),
         ),
         if (_loading) ...<Widget>[
           const ModalBarrier(dismissible: false, color: Colors.black12),
           const Center(child: CircularProgressIndicator()),
         ],
       ],
+    );
+  }
+}
+
+/// «Кого назначить»: сотрудники с должностью и участком. Сначала «мои
+/// механики» — с участков прораба, потом остальные: своих он назначает по
+/// десять раз на дню, чужих — когда свои заняты. Одно нажатие — выбор,
+/// без «ОК».
+class _AssignDialog extends StatelessWidget {
+  const _AssignDialog({
+    Key? key,
+    required this.item,
+    required this.employees,
+    required this.mySections,
+  }) : super(key: key);
+
+  final WorkItem item;
+  final List<WorkEmployee> employees;
+  final Set<String> mySections;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<WorkEmployee> mine = employees
+        .where((WorkEmployee e) => mySections.contains(e.section))
+        .toList();
+    final List<WorkEmployee> others = employees
+        .where((WorkEmployee e) => !mySections.contains(e.section))
+        .toList();
+
+    return SimpleDialog(
+      title: Text(
+        '${item.number} · ${item.objectName}',
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
+      contentPadding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
+      children: <Widget>[
+        if (mine.isNotEmpty) ...<Widget>[
+          _AssignGroup(title: 'Мои механики', count: mine.length),
+          for (final WorkEmployee e in mine) _AssignOption(employee: e),
+        ],
+        if (others.isNotEmpty) ...<Widget>[
+          _AssignGroup(
+            title: mine.isEmpty ? 'Сотрудники' : 'Остальные',
+            count: others.length,
+          ),
+          for (final WorkEmployee e in others) _AssignOption(employee: e),
+        ],
+      ],
+    );
+  }
+}
+
+class _AssignGroup extends StatelessWidget {
+  const _AssignGroup({Key? key, required this.title, required this.count})
+    : super(key: key);
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+      child: Text(
+        '${title.toUpperCase()} · $count',
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          color: ColorApp.myColorGrayText,
+        ),
+      ),
+    );
+  }
+}
+
+/// Строка сотрудника: значок должности, имя, под ним должность; участок —
+/// справа, серым: он нужен, чтобы не послать человека через весь город.
+class _AssignOption extends StatelessWidget {
+  const _AssignOption({Key? key, required this.employee}) : super(key: key);
+
+  final WorkEmployee employee;
+
+  @override
+  Widget build(BuildContext context) {
+    return SimpleDialogOption(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      onPressed: () => Navigator.of(context).pop(employee.name),
+      child: Row(
+        children: <Widget>[
+          Tooltip(
+            message: employee.specialty,
+            child: Icon(employee.icon, size: 18, color: ColorApp.myColorGray),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(employee.name, style: const TextStyle(fontSize: 14)),
+                Text(
+                  employee.specialty,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: ColorApp.myColorGrayText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (employee.section != null) ...<Widget>[
+            const SizedBox(width: 16),
+            const Icon(
+              Icons.place_outlined,
+              size: 14,
+              color: ColorApp.myColorGray,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              employee.section!,
+              style: const TextStyle(fontSize: 12, color: ColorApp.myColorGray),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

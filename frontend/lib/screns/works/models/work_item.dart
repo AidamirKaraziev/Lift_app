@@ -126,6 +126,8 @@ class WorkItem {
     this.hasDefect = false,
     this.comment,
     this.isActual = true,
+    this.section,
+    this.reviewed = false,
   });
 
   final int id;
@@ -178,6 +180,45 @@ class WorkItem {
   /// Мягкое удаление с бэка (`is_actual`). Архив ленты — это ровно
   /// `isActual == false`, см. `backend/src/core/archiving.py`.
   final bool isActual;
+
+  /// Участок обслуживания: по нему прораб отбирает свои объекты. На бэке
+  /// поля у заявки нет — с чего его брать, решается в S04.
+  final String? section;
+
+  /// Прораб отметил «проверил»: строка уходит из блока «требуют внимания»
+  /// до следующей перемены статуса. Сбрасывается бэком (S04), здесь — при
+  /// смене статуса в фикстуре.
+  final bool reviewed;
+
+  WorkItem copyWith({
+    WorkStatus? status,
+    String? performer,
+    DateTime? acceptedAt,
+    String? section,
+    bool? reviewed,
+  }) {
+    return WorkItem(
+      id: id,
+      kind: kind,
+      status: status ?? this.status,
+      actTitle: actTitle,
+      objectName: objectName,
+      objectType: objectType,
+      objectAddress: objectAddress,
+      taskText: taskText,
+      performer: performer ?? this.performer,
+      createdAt: createdAt,
+      acceptedAt: acceptedAt ?? this.acceptedAt,
+      startedAt: startedAt,
+      pausedAt: pausedAt,
+      closedAt: closedAt,
+      hasDefect: hasDefect,
+      comment: comment,
+      isActual: isActual,
+      section: section ?? this.section,
+      reviewed: reviewed ?? this.reviewed,
+    );
+  }
 
   bool get paused => pausedAt != null && status == WorkStatus.running;
 

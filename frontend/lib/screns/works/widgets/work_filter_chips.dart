@@ -5,6 +5,7 @@ import '../../schedule/widgets/schedule_search_field.dart';
 import '../models/work_counts.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
+import 'work_summary_bar.dart';
 
 /// Панель над лентой работ: чипсы статусов и видов со счётчиками, «Архив»
 /// и поиск.
@@ -15,8 +16,11 @@ import '../models/work_item.dart';
 /// коде, и прятать их за стрелкой значит скрывать счётчики — ради которых
 /// панель и нужна.
 ///
-/// Два ряда: статусы, под ними виды с архивом и поиском. В одном `Wrap`
-/// границу между «что с работой» и «что за работа» глаз не находит.
+/// Три ряда: статусы, под ними виды с архивом и поиском, под ними участок
+/// и механик. В одном `Wrap` границу между «что с работой» и «что за
+/// работа» глаз не находит. Участок и механик — выпадашками, а не чипсами:
+/// значений там столько, сколько в справочнике, и в ряд они не лягут.
+/// Внизу, за чертой, — полоса сводки ([WorkSummaryBar]).
 ///
 /// Отбор применяется сразу по нажатию; кнопки «Применить» нет, как и на
 /// графиках.
@@ -26,11 +30,17 @@ class WorkFilterChips extends StatelessWidget {
     required this.filters,
     required this.counts,
     required this.onChanged,
+    this.sections = const <String>[],
+    this.performers = const <String>[],
   }) : super(key: key);
 
   final WorkFilters filters;
   final WorkCounts counts;
   final ValueChanged<WorkFilters> onChanged;
+
+  /// Справочники для выпадашек — из ответа ленты.
+  final List<String> sections;
+  final List<String> performers;
 
   static const double pillHeight = 24;
   static const double fontSize = 10;
@@ -100,14 +110,140 @@ class WorkFilterChips extends StatelessWidget {
                 onSearch: (String text) =>
                     onChanged(filters.copyWith(search: text)),
               ),
-              if (filters.activeCount > 1)
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              _DropChip(
+                label: 'Участок',
+                value: filters.section,
+                options: sections,
+                onSelected: (String? v) => onChanged(
+                  v == null
+                      ? filters.copyWith(clearSection: true)
+                      : filters.copyWith(section: v, mine: false),
+                ),
+              ),
+              _DropChip(
+                label: 'Механик',
+                value: filters.performer,
+                options: performers,
+                onSelected: (String? v) => onChanged(
+                  v == null
+                      ? filters.copyWith(clearPerformer: true)
+                      : filters.copyWith(performer: v),
+                ),
+              ),
+              // «Мои участки» и один участок — взаимно исключают: выбранный
+              // участок за пределами моих дал бы пустую ленту без объяснения.
+              _Chip(
+                label: 'Мои участки',
+                icon: Icons.place_outlined,
+                active: filters.mine,
+                onTap: () => onChanged(
+                  filters.mine
+                      ? filters.copyWith(mine: false)
+                      : filters.copyWith(mine: true, clearSection: true),
+                ),
+              ),
+              // От одного условия, а не от двух: выпадашка «Участок: Центр»
+              // одна — и снимать её через меню дольше, чем одной кнопкой.
+              if (filters.activeCount > 0)
                 _ResetAll(
                   count: filters.activeCount,
                   onPressed: () => onChanged(filters.cleared()),
                 ),
             ],
           ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: ColorApp.myColorGrayBorder),
+          ),
+          WorkSummaryBar(
+            filters: filters,
+            counts: counts,
+            onChanged: onChanged,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Выпадашка в виде чипса: «Участок: все ▾», выбранное — «Участок: Центр ✕».
+/// Рисуется как [_Chip], чтобы ряд читался одним рядом; стрелка вместо
+/// счётчика говорит, что за ним список, а не переключатель.
+class _DropChip extends StatelessWidget {
+  const _DropChip({
+    Key? key,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+  }) : super(key: key);
+
+  final String label;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = value != null;
+    return PopupMenuButton<String>(
+      tooltip: label,
+      padding: EdgeInsets.zero,
+      onSelected: (String v) => onSelected(v == '' ? null : v),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(
+          value: '',
+          height: 36,
+          child: Text('Все', style: TextStyle(fontSize: 12)),
+        ),
+        for (final String o in options)
+          PopupMenuItem<String>(
+            value: o,
+            height: 36,
+            child: Text(
+              o,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: o == value ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+      ],
+      child: Container(
+        height: WorkFilterChips.pillHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: active ? ColorApp.myColorGreenLine : ColorApp.myColorWhite,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: ColorApp.myColorGreenAuth),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              '$label: ${value ?? 'все'}',
+              style: TextStyle(
+                fontSize: WorkFilterChips.fontSize,
+                fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                color: ColorApp.myColorBlack,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              active ? Icons.close : Icons.arrow_drop_down,
+              size: active ? 12 : 16,
+              color: ColorApp.myColorGray,
+            ),
+          ],
+        ),
       ),
     );
   }

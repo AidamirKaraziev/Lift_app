@@ -1,6 +1,9 @@
+import '../models/work_attention.dart';
 import '../models/work_counts.dart';
+import '../models/work_employee.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
+import '../models/work_timing.dart';
 import 'works_repository.dart';
 
 /// Лента «Работы» в памяти — для тестов экрана и точки `dev/works_preview.dart`.
@@ -16,27 +19,156 @@ import 'works_repository.dart';
 /// четыре строки в архиве: на одном экране должно быть видно всё, что
 /// умеет рисовать лента.
 class FixtureWorksRepository implements WorksRepository {
-  FixtureWorksRepository({this.delay = const Duration(milliseconds: 350)});
+  FixtureWorksRepository({this.delay = const Duration(milliseconds: 350)})
+    : _items = List<WorkItem>.of(items);
 
   /// Без задержки не видно загрузки, и экран нельзя проверить глазами.
   final Duration delay;
 
   static final List<WorkItem> items = _build(DateTime.now());
 
+  /// Участки прораба из превью. Два из трёх — чтобы чипс «Мои участки»
+  /// что-то убирал.
+  static const Set<String> mySections = <String>{'Центр', 'Север'};
+
+  /// Кого можно назначить. Есть и не-механики: диалог должен показать, что
+  /// должность видна, а не только имя.
+  static const List<WorkEmployee> employees = <WorkEmployee>[
+    WorkEmployee(name: 'Иванов А. С.', specialty: 'Механик', section: 'Центр'),
+    WorkEmployee(name: 'Петров В. И.', specialty: 'Механик', section: 'Север'),
+    WorkEmployee(
+      name: 'Сидоров К. П.',
+      specialty: 'Инженер-наладчик',
+      section: 'Центр',
+    ),
+    WorkEmployee(name: 'Кузнецов Д. М.', specialty: 'Механик', section: 'Юг'),
+    WorkEmployee(name: 'Орлова Н. В.', specialty: 'Диспетчер', section: 'Юг'),
+  ];
+
+  /// Своя копия: «назначить» и «проверил» меняют строки, а [items] читают
+  /// тесты как эталон.
+  final List<WorkItem> _items;
+
   @override
   Future<WorksFeed> fetch(WorkFilters filters) async {
     await Future<void>.delayed(delay);
+    final DateTime now = DateTime.now();
 
-    final List<WorkItem> matched = items.where(filters.matches).toList()
-      ..sort((WorkItem a, WorkItem b) => b.updatedAt.compareTo(a.updatedAt));
+    final List<WorkItem> matched = _items
+        .where(
+          (WorkItem i) => filters.matches(i, now: now, mySections: mySections),
+        )
+        .toList();
 
-    return WorksFeed(items: matched, counts: WorkCounts.count(items, filters));
+    int attentionCount = 0;
+    if (filters.sort == WorkSort.attention) {
+      // Блок внимания — самое давнее сверху: у кого стадия тянется дольше,
+      // тот и первый. Остальные — по последней перемене, как и прежде.
+      final List<WorkItem> urgent =
+          matched
+              .where((WorkItem i) => WorkAttention.of(i, now) != null)
+              .toList()
+            ..sort(
+              (WorkItem a, WorkItem b) => WorkTiming.of(
+                b,
+                now,
+              ).duration.compareTo(WorkTiming.of(a, now).duration),
+            );
+      final List<WorkItem> rest =
+          matched
+              .where((WorkItem i) => WorkAttention.of(i, now) == null)
+              .toList()
+            ..sort(
+              (WorkItem a, WorkItem b) => b.updatedAt.compareTo(a.updatedAt),
+            );
+      attentionCount = urgent.length;
+      matched
+        ..clear()
+        ..addAll(urgent)
+        ..addAll(rest);
+    } else {
+      matched.sort(
+        (WorkItem a, WorkItem b) => b.updatedAt.compareTo(a.updatedAt),
+      );
+    }
+
+    final List<String> sections =
+        _items
+            .map((WorkItem i) => i.section)
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort();
+    final List<String> performers =
+        _items
+            .map((WorkItem i) => i.performer)
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort();
+
+    return WorksFeed(
+      items: matched,
+      counts: WorkCounts.count(
+        _items,
+        filters,
+        now: now,
+        mySections: mySections,
+      ),
+      attentionCount: attentionCount,
+      sections: sections,
+      performers: performers,
+      employees: employees,
+      mySections: mySections,
+    );
+  }
+
+  @override
+  Future<void> assign(WorkItem item, String performer) async {
+    await Future<void>.delayed(delay);
+    _replace(
+      item.copyWith(
+        performer: performer,
+        status: item.status == WorkStatus.fresh
+            ? WorkStatus.accepted
+            : item.status,
+        acceptedAt: item.status == WorkStatus.fresh ? DateTime.now() : null,
+        reviewed: false,
+      ),
+    );
+  }
+
+  @override
+  Future<void> review(WorkItem item) async {
+    await Future<void>.delayed(delay);
+    _replace(item.copyWith(reviewed: true));
+  }
+
+  void _replace(WorkItem fresh) {
+    final int at = _items.indexWhere((WorkItem i) => i.id == fresh.id);
+    if (at >= 0) _items[at] = fresh;
+  }
+
+  /// Участок — по улице: в фикстуре объектов девять, и таблицы хватает.
+  static String _sectionOf(String? address) {
+    final String a = address ?? '';
+    if (a.contains('Ленина') || a.contains('Мира') || a.contains('Морская')) {
+      return 'Центр';
+    }
+    if (a.contains('Полярная') || a.contains('Обводного')) return 'Север';
+    return 'Юг';
   }
 
   static List<WorkItem> _build(DateTime now) {
     DateTime ago(double hours) =>
         now.subtract(Duration(minutes: (hours * 60).round()));
 
+    return _raw(ago)
+        .map((WorkItem i) => i.copyWith(section: _sectionOf(i.objectAddress)))
+        .toList();
+  }
+
+  static List<WorkItem> _raw(DateTime Function(double hours) ago) {
     return <WorkItem>[
       // Новые: заявки, которые никто не взял. Первая ждёт дольше двух часов.
       WorkItem(
