@@ -19,15 +19,16 @@ enum WorkSort {
 /// комбинацию.
 ///
 /// Порядок ([sort]) тоже здесь, хотя это не отбор: репозиторий получает
-/// один объект «что показать и как», и ручке S04 он уйдёт целиком.
+/// один объект «что показать и как», и ручке `GET /work/feed` он уходит
+/// целиком — см. [toQuery].
 class WorkFilters {
   const WorkFilters({
     this.status,
     this.kind,
     this.search = '',
     this.archived = false,
-    this.section,
-    this.performer,
+    this.sectionId,
+    this.performerId,
     this.mine = false,
     this.attention,
     this.sort = WorkSort.attention,
@@ -45,11 +46,12 @@ class WorkFilters {
   /// ленте выглядит как живое, и его берут в работу.
   final bool archived;
 
-  /// Один участок из справочника — или `null`, все.
-  final String? section;
+  /// Один участок из справочника — или `null`, все. По id, а не по
+  /// названию: так отбирает ручка, и переименование участка отбор не ломает.
+  final int? sectionId;
 
-  /// Один механик по имени — или `null`, все.
-  final String? performer;
+  /// Один механик — или `null`, все.
+  final int? performerId;
 
   /// Только участки, закреплённые за прорабом. Какие именно — знает
   /// репозиторий, не отбор: отбор хранит намерение, а не список.
@@ -67,8 +69,8 @@ class WorkFilters {
       (kind == null ? 0 : 1) +
       (search.isEmpty ? 0 : 1) +
       (archived ? 1 : 0) +
-      (section == null ? 0 : 1) +
-      (performer == null ? 0 : 1) +
+      (sectionId == null ? 0 : 1) +
+      (performerId == null ? 0 : 1) +
       (mine ? 1 : 0) +
       (attention == null ? 0 : 1);
 
@@ -79,9 +81,9 @@ class WorkFilters {
     bool clearKind = false,
     String? search,
     bool? archived,
-    String? section,
+    int? sectionId,
     bool clearSection = false,
-    String? performer,
+    int? performerId,
     bool clearPerformer = false,
     bool? mine,
     AttentionReason? attention,
@@ -93,8 +95,8 @@ class WorkFilters {
       kind: clearKind ? null : (kind ?? this.kind),
       search: search ?? this.search,
       archived: archived ?? this.archived,
-      section: clearSection ? null : (section ?? this.section),
-      performer: clearPerformer ? null : (performer ?? this.performer),
+      sectionId: clearSection ? null : (sectionId ?? this.sectionId),
+      performerId: clearPerformer ? null : (performerId ?? this.performerId),
       mine: mine ?? this.mine,
       attention: clearAttention ? null : (attention ?? this.attention),
       sort: sort ?? this.sort,
@@ -104,22 +106,49 @@ class WorkFilters {
   /// Сброс отбора; порядок остаётся — это не условие, а привычка.
   WorkFilters cleared() => WorkFilters(sort: sort);
 
-  /// Подходит ли строка под отбор. Считает и фикстура, и тесты: правило
-  /// одно, и расходиться ему негде.
+  /// Тот же отбор без чипсов статуса, вида и причины внимания — под опрос
+  /// `updated_since`. Ручка применяет `updated_since` вместе с чипсами, и
+  /// строка, что сменила статус и ушла из-под чипса, в ответ не попала бы —
+  /// а убрать её из ленты надо. Поэтому перемены спрашиваются широко, а
+  /// «в чипсе ли ещё» решает [matches] на месте.
+  WorkFilters wide() => WorkFilters(
+    search: search,
+    archived: archived,
+    sectionId: sectionId,
+    performerId: performerId,
+    mine: mine,
+    sort: sort,
+  );
+
+  /// Параметры `GET /work/feed`. Пустые условия не отправляются.
+  Map<String, String> toQuery() => <String, String>{
+    if (status != null) 'status': status!.name,
+    if (kind != null) 'kind': kindPathSegment(kind!),
+    if (search.isNotEmpty) 'search': search,
+    if (archived) 'only_archived': 'true',
+    if (sectionId != null) 'section_id': '$sectionId',
+    if (performerId != null) 'performer_id': '$performerId',
+    if (mine) 'mine': 'true',
+    if (attention != null) 'attention': attention!.apiName,
+    'sort': sort.name,
+  };
+
+  /// Подходит ли строка под отбор. Считает фикстура, тесты и опрос перемен:
+  /// правило одно, и расходиться ему негде.
   ///
   /// [now] нужен только отбору по причине внимания, [mySections] — только
   /// чипсу «Мои участки»; без них эти два условия считаются выполненными.
   bool matches(
     WorkItem item, {
     DateTime? now,
-    Set<String> mySections = const <String>{},
+    Set<int> mySections = const <int>{},
   }) {
     if (item.isActual == archived) return false;
     if (status != null && item.status != status) return false;
     if (kind != null && item.kind != kind) return false;
-    if (section != null && item.section != section) return false;
-    if (performer != null && item.performer != performer) return false;
-    if (mine && !mySections.contains(item.section)) return false;
+    if (sectionId != null && item.sectionId != sectionId) return false;
+    if (performerId != null && item.performerId != performerId) return false;
+    if (mine && !mySections.contains(item.sectionId)) return false;
     if (attention != null && now != null) {
       if (WorkAttention.of(item, now) != attention) return false;
     }

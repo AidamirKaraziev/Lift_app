@@ -28,6 +28,7 @@ Future<void> _pump(WidgetTester tester, {double width = 1440}) async {
         repository: FixtureWorksRepository(delay: Duration.zero),
         drawer: const Drawer(),
         tick: null,
+        poll: null,
       ),
     ),
   );
@@ -141,6 +142,35 @@ void main() {
 
     expect(find.text('Под отбор не подошла ни одна работа'), findsOneWidget);
     expect(_rows(tester), 0);
+  });
+
+  testWidgets('выпадашка участка отбирает по id', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.byTooltip('Участок'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Север').last);
+    await tester.pumpAndSettle();
+
+    final int expected = all
+        .where((WorkItem i) => i.isActual && i.sectionId == 2)
+        .length;
+    expect(_rows(tester), expected);
+    expect(find.text('Участок: Север'), findsOneWidget);
+  });
+
+  testWidgets('«Мои участки» оставляет только участки прораба', (tester) async {
+    await _pump(tester);
+    await tester.tap(_chip('Мои участки').first);
+    await tester.pumpAndSettle();
+
+    final int expected = all
+        .where(
+          (WorkItem i) =>
+              i.isActual &&
+              FixtureWorksRepository.mySections.contains(i.sectionId),
+        )
+        .length;
+    expect(_rows(tester), expected);
   });
 
   testWidgets('на телефоне строки складываются в колонку', (tester) async {

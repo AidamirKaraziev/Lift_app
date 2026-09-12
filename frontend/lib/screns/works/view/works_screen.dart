@@ -1,14 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../helper/class_colors.dart';
 import '../../../navigation/shell_drawer.dart';
 import '../../schedule/view/schedule_section.dart' show scheduleShowsLeading;
+import '../bloc/works_bloc.dart';
 import '../models/work_counts.dart';
 import '../models/work_employee.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
+import '../models/work_section.dart';
 import '../repository/works_repository.dart';
 import '../widgets/work_filter_chips.dart';
 import '../widgets/work_group_header.dart';
@@ -16,20 +20,20 @@ import '../widgets/work_row_tile.dart';
 
 /// Экран «Работы»: заявки и акты ТО одной лентой.
 ///
-/// Набросок S03: вид собран по образцу графиков E01 — серый фон, белая
-/// шапка, белая карточка фильтров, белая карточка списка с разделителями.
-/// Своего кадра в Figma нет.
+/// Вид собран по образцу графиков E01 — серый фон, белая шапка, белая
+/// карточка фильтров, белая карточка списка с разделителями. Своего кадра в
+/// Figma нет.
 ///
-/// Состояние держит сам экран: отбор и последний ответ репозитория. Блока
-/// нет намеренно — он появится в S05 вместе с опросом `updated_since`, и
-/// тащить `flutter_bloc` в набросок, который утверждают глазами, незачем.
-class WorksScreen extends StatefulWidget {
+/// Состояние — в [WorksBloc]: отбор, страницы и опрос перемен. Экран держит
+/// только то, что относится к экрану: такт опроса и такт таймеров строк.
+class WorksScreen extends StatelessWidget {
   const WorksScreen({
     Key? key,
     required this.repository,
     this.drawer = const ShellDrawer(),
     this.onOpen,
     this.tick = const Duration(seconds: 30),
+    this.poll = const Duration(seconds: 15),
   }) : super(key: key);
 
   final WorksRepository repository;
@@ -38,7 +42,7 @@ class WorksScreen extends StatefulWidget {
   /// единственный путь из «Работ» куда-то ещё.
   final Widget drawer;
 
-  /// Клик по строке. Пусто — строка не нажимается: карточка работы — S05.
+  /// Клик по строке. Пусто — строка не нажимается: карточка работы — позже.
   final ValueChanged<WorkItem>? onOpen;
 
   /// Как часто перерисовывать таймеры строк. Один таймер на ленту, а не в
@@ -46,28 +50,59 @@ class WorksScreen extends StatefulWidget {
   /// периодический таймер не даёт `pumpAndSettle` закончиться.
   final Duration? tick;
 
+  /// Как часто спрашивать перемены. Пятнадцать секунд: механик взял задачу —
+  /// прораб видит это раньше, чем успеет ему позвонить. `null` — не
+  /// опрашивать (тесты и превью на фикстуре).
+  final Duration? poll;
+
   @override
-  State<WorksScreen> createState() => _WorksScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider<WorksBloc>(
+      create: (_) =>
+          WorksBloc(repository: repository)..add(const WorksRequested()),
+      child: _WorksBody(
+        drawer: drawer,
+        onOpen: onOpen,
+        tick: tick,
+        poll: poll,
+      ),
+    );
+  }
 }
 
-class _WorksScreenState extends State<WorksScreen> {
-  WorkFilters _filters = const WorkFilters();
-  WorksFeed? _feed;
-  bool _loading = true;
-  String? _error;
+class _WorksBody extends StatefulWidget {
+  const _WorksBody({
+    Key? key,
+    required this.drawer,
+    required this.onOpen,
+    required this.tick,
+    required this.poll,
+  }) : super(key: key);
 
-  /// Номер последнего запроса: ответ на устаревший отбор выбрасывается,
-  /// иначе поиск, набранный быстрее, чем отвечает фикстура, показал бы
-  /// выдачу на предыдущую букву.
-  int _serial = 0;
+  final Widget drawer;
+  final ValueChanged<WorkItem>? onOpen;
+  final Duration? tick;
+  final Duration? poll;
 
+  @override
+  State<_WorksBody> createState() => _WorksBodyState();
+}
+
+class _WorksBodyState extends State<_WorksBody> with WidgetsBindingObserver {
   Timer? _ticker;
+  Timer? _poller;
   DateTime _now = DateTime.now();
+
+  /// Когда опрашивали в последний раз — чтобы возврат из фона не спрашивал
+  /// чаще такта: браузер дёргает видимость вкладки и на смену окна, и на
+  /// снимок, и каждый раз слать запрос — значит опрашивать не по такту, а
+  /// по чиху окна.
+  DateTime _lastSync = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addObserver(this);
     final Duration? tick = widget.tick;
     if (tick != null) {
       _ticker = Timer.periodic(
@@ -75,93 +110,92 @@ class _WorksScreenState extends State<WorksScreen> {
         (_) => setState(() => _now = DateTime.now()),
       );
     }
+    _startPolling();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _poller?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final int serial = ++_serial;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final WorksFeed feed = await widget.repository.fetch(_filters);
-      if (!mounted || serial != _serial) return;
-      setState(() {
-        _feed = feed;
-        _now = DateTime.now();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted || serial != _serial) return;
-      setState(() {
-        _error = 'Не удалось загрузить работы';
-        _loading = false;
-      });
+  /// Приложение свернули — опрос замолкает: запросы в фоне тратят батарею и
+  /// трафик, а увидеть их результат некому. Вернулись — спрашиваем сразу,
+  /// если спали дольше такта: за это время лента устарела сильнее, чем на
+  /// такт, и ждать его незачем.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      final Duration? poll = widget.poll;
+      if (poll != null && DateTime.now().difference(_lastSync) >= poll) {
+        _sync();
+      }
+      _startPolling();
+    } else {
+      _poller?.cancel();
+      _poller = null;
     }
   }
 
-  void _onFiltersChanged(WorkFilters filters) {
-    setState(() => _filters = filters);
-    _load();
+  /// Такт, если он не идёт. Живой не перезапускаем: «вернулись» браузер
+  /// шлёт и без ухода, и перезапуск такта на каждый — значит никогда не
+  /// дождаться его конца.
+  void _startPolling() {
+    final Duration? poll = widget.poll;
+    if (poll == null || _poller != null) return;
+    _poller = Timer.periodic(poll, (_) => _sync());
   }
 
-  /// Быстрое действие: репозиторий меняет строку, лента перечитывается.
-  /// Пока едет — заслонка, как при смене отбора: строка не должна
-  /// «мигнуть» старым состоянием после нажатия.
-  Future<void> _act(Future<void> Function() action, String done) async {
-    setState(() => _loading = true);
-    try {
-      await action();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Не получилось, повторите')));
-      return;
-    }
+  void _sync() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(done), duration: const Duration(seconds: 2)),
-      );
-    await _load();
+    _lastSync = DateTime.now();
+    context.read<WorksBloc>().add(const WorksSynced());
   }
+
+  WorksBloc get _bloc => context.read<WorksBloc>();
+
+  void _onFiltersChanged(WorkFilters filters) =>
+      _bloc.add(WorksRequested(filters: filters));
 
   Future<void> _assign(WorkItem item) async {
-    final WorksFeed? feed = _feed;
-    final String? who = await showDialog<String>(
+    final WorksFeed? feed = _bloc.state.feed;
+    final WorkEmployee? who = await showDialog<WorkEmployee>(
       context: context,
       builder: (BuildContext context) => _AssignDialog(
         item: item,
         employees: feed?.employees ?? const <WorkEmployee>[],
-        mySections: feed?.mySections ?? const <String>{},
+        mySections: feed?.mySections ?? const <int>{},
       ),
     );
-    if (who == null) return;
-    await _act(
-      () => widget.repository.assign(item, who),
-      '${item.number} назначена: $who',
-    );
+    if (who == null || !mounted) return;
+    _bloc.add(WorkAssigned(item, who));
   }
 
-  /// Телефона у механика в ленте пока нет — он придёт с ручкой S04. Пока
-  /// действие честно говорит, кому звонить, и не притворяется звонком.
-  void _call(WorkItem item) {
+  /// Звонок исполнителю через набор номера. Телефона нет — так и говорим,
+  /// а не притворяемся звонком.
+  Future<void> _call(WorkItem item) async {
+    final String? phone = item.performerPhone;
+    if (phone == null) {
+      _say('У ${item.performer ?? 'исполнителя'} нет телефона в карточке');
+      return;
+    }
+    final Uri uri = Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
+    if (!await launchUrl(uri)) {
+      _say('Не удалось набрать $phone');
+    }
+  }
+
+  void _review(WorkItem item) => _bloc.add(WorkReviewed(item));
+
+  void _say(String text) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text('Позвонить: ${item.performer} — номер появится в S04'),
-          duration: const Duration(seconds: 2),
-        ),
+        SnackBar(content: Text(text), duration: const Duration(seconds: 2)),
       );
   }
 
@@ -170,10 +204,13 @@ class _WorksScreenState extends State<WorksScreen> {
   /// Заголовки — обычные элементы списка, а не `SliverList` с шапками: их
   /// два, и лента одна. Разделитель перед заголовком не рисуется — у него
   /// свой серый фон, и линия над ним читалась бы как двойная.
-  Widget _list(WorksFeed feed) {
+  Widget _list(WorksState state) {
+    final WorksFeed feed = state.feed!;
     final bool grouped =
-        _filters.sort == WorkSort.attention && feed.items.isNotEmpty;
-    final int urgent = feed.attentionCount;
+        state.filters.sort == WorkSort.attention && feed.items.isNotEmpty;
+    // Не больше, чем строк на руках: число с ручки — по всему отбору, а
+    // страница могла кончиться раньше блока.
+    final int urgent = feed.attentionCount.clamp(0, feed.items.length);
     final int rest = feed.items.length - urgent;
 
     final List<Widget> rows = <Widget>[];
@@ -211,6 +248,14 @@ class _WorksScreenState extends State<WorksScreen> {
         ),
       );
     }
+    if (feed.nextCursor != null) {
+      rows.add(
+        _MoreRow(
+          loading: state.loadingMore,
+          onPressed: () => _bloc.add(const WorksMoreRequested()),
+        ),
+      );
+    }
 
     return ListView.builder(
       itemCount: rows.length,
@@ -218,52 +263,59 @@ class _WorksScreenState extends State<WorksScreen> {
     );
   }
 
-  Future<void> _review(WorkItem item) =>
-      _act(() => widget.repository.review(item), '${item.number} — проверено');
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ColorApp.myColorGrayShadow,
-      drawer: widget.drawer,
-      appBar: AppBar(
-        automaticallyImplyLeading: scheduleShowsLeading(context),
-        title: const Text('Работы'),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: ColorApp.myColorBlack,
-      ),
-      body: Column(
-        children: <Widget>[
-          // Панель рисуется во всех состояниях, включая загрузку: чипс
-          // применяется сразу, и пропадай панель на время запроса — нажать
-          // второй было бы не по чему.
-          WorkFilterChips(
-            filters: _filters,
-            counts: _feed?.counts ?? WorkCounts.empty,
-            sections: _feed?.sections ?? const <String>[],
-            performers: _feed?.performers ?? const <String>[],
-            onChanged: _onFiltersChanged,
-          ),
-          Expanded(child: _body()),
-        ],
+    return BlocConsumer<WorksBloc, WorksState>(
+      listenWhen: (WorksState a, WorksState b) =>
+          a.messageSerial != b.messageSerial,
+      listener: (BuildContext context, WorksState state) {
+        if (state.message != null) _say(state.message!);
+      },
+      builder: (BuildContext context, WorksState state) => Scaffold(
+        backgroundColor: ColorApp.myColorGrayShadow,
+        drawer: widget.drawer,
+        appBar: AppBar(
+          automaticallyImplyLeading: scheduleShowsLeading(context),
+          title: const Text('Работы'),
+          elevation: 0,
+          backgroundColor: Colors.white,
+          foregroundColor: ColorApp.myColorBlack,
+        ),
+        body: Column(
+          children: <Widget>[
+            // Панель рисуется во всех состояниях, включая загрузку: чипс
+            // применяется сразу, и пропадай панель на время запроса — нажать
+            // второй было бы не по чему.
+            WorkFilterChips(
+              filters: state.filters,
+              counts: state.feed?.counts ?? WorkCounts.empty,
+              sections: state.feed?.sections ?? const <WorkSection>[],
+              employees: state.feed?.employees ?? const <WorkEmployee>[],
+              onChanged: _onFiltersChanged,
+            ),
+            Expanded(child: _body(state)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _body() {
-    final WorksFeed? feed = _feed;
+  Widget _body(WorksState state) {
+    final WorksFeed? feed = state.feed;
 
-    if (_error != null) {
+    if (state.error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(fontSize: 14)),
+            Text(state.error!, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 16),
-            TextButton(onPressed: _load, child: const Text('Повторить')),
+            TextButton(
+              onPressed: () => _bloc.add(const WorksRequested()),
+              child: const Text('Повторить'),
+            ),
           ],
         ),
       );
@@ -273,10 +325,10 @@ class _WorksScreenState extends State<WorksScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (feed.items.isEmpty && !_loading) {
+    if (feed.items.isEmpty && !state.loading) {
       return _EmptyView(
-        filters: _filters,
-        onReset: () => _onFiltersChanged(_filters.cleared()),
+        filters: state.filters,
+        onReset: () => _onFiltersChanged(state.filters.cleared()),
       );
     }
 
@@ -291,13 +343,50 @@ class _WorksScreenState extends State<WorksScreen> {
             color: ColorApp.myColorWhite,
             borderRadius: BorderRadius.circular(5),
           ),
-          child: _list(feed),
+          child: _list(state),
         ),
-        if (_loading) ...<Widget>[
+        if (state.loading) ...<Widget>[
           const ModalBarrier(dismissible: false, color: Colors.black12),
           const Center(child: CircularProgressIndicator()),
         ],
       ],
+    );
+  }
+}
+
+/// «Показать ещё» в хвосте ленты, пока у ручки есть курсор. Кнопка, а не
+/// подгрузка по скроллу: лента живая, и строки под пальцем и так двигаются.
+class _MoreRow extends StatelessWidget {
+  const _MoreRow({Key? key, required this.loading, required this.onPressed})
+    : super(key: key);
+
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: ColorApp.myColorGrayBorder)),
+      ),
+      child: loading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : TextButton(
+              onPressed: onPressed,
+              child: const Text(
+                'Показать ещё',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: ColorApp.myColorGreenAuth,
+                ),
+              ),
+            ),
     );
   }
 }
@@ -316,15 +405,15 @@ class _AssignDialog extends StatelessWidget {
 
   final WorkItem item;
   final List<WorkEmployee> employees;
-  final Set<String> mySections;
+  final Set<int> mySections;
 
   @override
   Widget build(BuildContext context) {
     final List<WorkEmployee> mine = employees
-        .where((WorkEmployee e) => mySections.contains(e.section))
+        .where((WorkEmployee e) => mySections.contains(e.sectionId))
         .toList();
     final List<WorkEmployee> others = employees
-        .where((WorkEmployee e) => !mySections.contains(e.section))
+        .where((WorkEmployee e) => !mySections.contains(e.sectionId))
         .toList();
 
     return SimpleDialog(
@@ -386,7 +475,7 @@ class _AssignOption extends StatelessWidget {
   Widget build(BuildContext context) {
     return SimpleDialogOption(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      onPressed: () => Navigator.of(context).pop(employee.name),
+      onPressed: () => Navigator.of(context).pop(employee),
       child: Row(
         children: <Widget>[
           Tooltip(

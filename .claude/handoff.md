@@ -1,80 +1,79 @@
 ---
-этап: E03·S03b — улучшения окна «Работы» на фикстуре
+этап: E03·S05 — подключить ленту к API и сделать её живой
 статус: закрыт
 дата: 2026-09-12
 план: .claude/plan/E03-edinaya-navigatsiya.md
 ---
 
-# Передача: улучшения «Работ» утверждены глазами, следующий — ручка S04
+# Передача: лента «Работы» живёт на `GET /work/feed`, следующий — S06 (главная прораба)
 
 ## Сделано и проверено
 
-- `lib/screns/works/`: `WorkAttention` (три причины: не назначена, стадия
-  затянулась, пауза дольше часа — пороги из `WorkTiming`), `WorkEmployee`
-  (должность + участок), в `WorkItem` — `section`, `reviewed`, `copyWith`.
-- `WorkFilters`: `section`, `performer`, `mine`, `attention`, `sort`;
-  `matches(item, now:, mySections:)`. `WorkCounts.byAttention`.
-- `WorksFeed`: `attentionCount`, `sections`, `performers`, `employees`,
-  `mySections`. `WorksRepository.assign(item, who)` и `review(item)`.
-- Виджеты: `WorkSummaryBar` (куски сводки — фильтры, переключатель порядка),
-  третий ряд чипсов (выпадашки «Участок/Механик», «Мои участки»),
-  `WorkGroupHeader`, `WorkRowActions` («Назначить» всегда, «позвонить /
-  проверил» при наведении, на телефоне — «⋯»), диалог `_AssignDialog`
-  с «Мои механики / Остальные», иконкой должности и участком.
-- «Сбросить всё» — от одного условия.
-- Утверждено глазами 12.09 на `works-preview` (порт 5614): сводка, назначение
-  (1042 → принята), «проверил», участок «Юг», «Мои участки», телефон 375.
-- `flutter test` 528 · `dart analyze lib/screns/works lib/dev` 0 ·
-  `make lint` чист. Не закоммичено: handoff/план/ledger и весь код S03b.
+- `ApiWorksRepository` (`frontend/lib/screns/works/repository/`) поверх
+  `GET /work/feed` и `POST /work/{kind}/{id}/assign/|review/` — через `Api`,
+  не dio (весь новый фронт ходит через `helper/api_client.dart`).
+- `WorkFilters` — `sectionId`/`performerId` (int), `toQuery()`, `wide()`;
+  счётчики — из `counts` ручки. Выпадашки участка/механика по id.
+- `WorksBloc` (`screns/works/bloc/`): полный запрос по смене отбора; опрос
+  `changes(updated_since)` каждые 15 с **широким** отбором (без
+  status/kind/attention — ручка применяет `updated_since` вместе с чипсами,
+  и ушедшую из-под чипса строку иначе не убрать), мерж по `(kind, id)`,
+  порядок восстанавливает `WorkOrder.arrange`; после непустого дифа —
+  `fetch(limit: 1)` за счётчиками. `assign`/`review` подменяют строку
+  ответом без перезапроса. Курсор — «Показать ещё» внизу.
+- Таймер опроса в виджете (`_WorksBodyState`): пауза в фоне, возврат
+  опрашивает не чаще такта (браузер шлёт `resumed` на каждый снимок вкладки).
+- На `make up` под прорабом: смена статуса №62 на сервере → пилюля
+  «Новая»→«Принята» на месте за такт; под чипсом «Новая» строка уходит
+  сразу; «Назначить» → `POST …/assign/` 200; `mine=true` уходит в ручку.
+- `flutter test` 543 зелёных (`test/works` — 25), `dart analyze` по
+  `screns/works`, `dev`, `test/works` — 0, `make lint` чист.
+- Dev-точка `lib/dev/works_live.dart`, конфиг `works-live` (порт 5615).
+  Не закоммичено — коммит за тобой.
 
 ## Не доделано
 
-- Тестов на новое нет (сводка, порядок, «проверил», диалог) — старые 8 в
-  `test/works/` зелёные. Написать до подключения к API в S05.
-- «Позвонить» показывает снэкбар: телефона механика в ленте нет — S04.
-- `flutter build web` в этой сессии не гонялся.
+- Заголовок блока «Требуют внимания» режется по странице (30), сводка
+  считает по всему отбору (76): осознанно, пока страница одна.
+- У сотрудников с ручки пустая `specialty` (в диалоге назначения вторая
+  строка пустая); у актов ТО в локальной базе `object` пустой → «Объект без
+  названия». Оба — данные/бэк, не экран.
+- В панели браузера Claude попап-меню не кликается (переключения
+  видимости) — выпадашки проверены виджет-тестом, не глазами на стеке.
 
 ## Следующий этап
 
-**Цель.** S04 — `GET /work/feed`: заявки и акты одной ручкой с полями под
-ленту и её улучшения.
+**Цель.** S06 — топ сотрудников на главной прораба, тот же, что у админа.
 
-**Готово, когда.** Ручка отдаёт всё со списка ниже с курсором и
-`updated_since`; старые `/order/all`, `/work/in-progress`, `/work/submitted`
-живы и `deprecated`; `make test` и `make lint` чисты.
+**Готово, когда.** Раздел «Главная» общий для обеих ролей; у прораба тот же
+топ сотрудников, что у админа, с теми же данными.
 
 ## Первые шаги
 
-1. Поля строки: `status` одним словом (fresh/accepted/running/submitted/
-   problem), `act_title`, `object_type`, `accepted_at`, `paused_at`,
-   `has_defect`, `comment`, `is_actual`, `section` (из `division` объекта
-   или исполнителя — решить), `reviewed`, `performer_phone`.
-2. Параметры: `status`, `kind`, `search`, `only_archived`
-   (`ArchiveView.ARCHIVED`, `backend/src/core/archiving.py`), `section`,
-   `performer_id`, `mine`, `attention`, `sort=attention|updated`, курсор.
-3. В ответе справочники: `sections`, `employees` (имя, `working_specialty`,
-   `division`) — под выпадашки и диалог назначения; `my_sections` прораба.
-4. Действия: `POST .../assign` и `POST .../review` — контракт под
-   `WorksRepository.assign/review`; `reviewed` сбрасывать при смене статуса.
-5. Правило причин внимания — `frontend/lib/screns/works/models/work_attention.dart`;
-   на бэке считать так же или отдавать даты и оставить фронту.
+1. `frontend/lib/screns/home/top_employees/top_employees.dart:199` —
+   `isAdmin` прячет переключатель «механики / прорабы»; выяснить, что ещё
+   у прораба отличается (bloc/repository рядом) и почему.
+2. `HomeScreen` уже общий: `screns/home_page/home_page.dart:197` и
+   `foreman/home_foreman.dart:214` — проверить, что данные у ролей одни
+   (ручка топа и её права на бэке).
+3. Проверить под `pr@mail.ru` на `make up` через `app-live` (порт 5610).
 
 ## Не трогать
 
-- `lib/navigation/*`, `WorksSection` — замена в S05.
-- `submitted_works/*`, `in_progress_works/*` — из них только `WorkKind`.
-- `pubspec.yaml`/`.lock`; `flutter pub get` не запускать.
+- Ручку `GET /work/feed` и bloc ленты — правки только по находкам S06/S07
+  отдельным коммитом.
+- `lib/navigation/*`, `WorksSection` — замена на живой экран в S08.
+- `pubspec.yaml`/`.lock`; `flutter pub get` не запускать (`flutter test`
+  делает `pub get` сам — lock не меняется, проверено).
 
 ## Уточнить перед стартом
 
-- Участок работы — от объекта или от исполнителя? В базе `division` есть у
-  пользователя; у объекта — проверить.
-- Сортировку «сначала требуют внимания» считает бэк или фронт по датам?
+- S06 или сначала S07 (бейдж «Работы» из `unreviewed-count` — S05 закрыт,
+  зависимость снята)?
 
 ## Ссылки
 
-- `frontend/lib/screns/works/repository/works_repository.dart` — контракт,
-  под который пишется ручка.
-- `frontend/lib/screns/works/repository/fixture_works_repository.dart` —
-  эталон поведения: порядок, счётчики, assign/review.
-- `backend/src/models/universal_user.py` — `working_specialty`, `division`.
+- `frontend/lib/screns/works/bloc/works_bloc.dart` — как лента живёт
+  переменами; пригодится для S07 (обновлять бейдж «вместе с лентой»).
+- `frontend/lib/screns/submitted_works/unreviewed_counter.dart` —
+  `ValueNotifier` счётчика, который читает бургер.

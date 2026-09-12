@@ -14,3 +14,5 @@
 {"date":"2026-09-11","epic":"E03","stage":"S02 перевести оболочки админа и прораба на go_router","area":"front","status":"закрыт","session":"23ba3a4e","commits":["eb43063"]}
 {"date":"2026-09-11","epic":"E03","stage":"S03 сверстать экран «Работы» на фикстуре","area":"front+design","status":"закрыт","session":"5c1617d7","commits":[]}
 {"date": "2026-09-12", "epic": "E03", "stage": "S03b улучшить окно «Работы» на фикстуре", "area": "front+design", "status": "закрыт", "session": "65a755f7", "commits": ["5953053"]}
+{"date":"2026-09-12","epic":"E03","stage":"S04 отдать единую ленту работ одной ручкой","area":"back","status":"закрыт","session":"f4c19277","commits":["e7f0070"]}
+{"date":"2026-09-12","epic":"E03","stage":"S05 подключить ленту к API и сделать её живой","area":"front","status":"закрыт","session":"82588212","commits":[]}

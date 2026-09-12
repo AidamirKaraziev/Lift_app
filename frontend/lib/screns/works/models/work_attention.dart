@@ -20,6 +20,18 @@ enum AttentionReason {
 }
 
 extension AttentionReasonLabel on AttentionReason {
+  /// Слово для ручки: `paused_long`, а не `pausedLong`.
+  String get apiName {
+    switch (this) {
+      case AttentionReason.unassigned:
+        return 'unassigned';
+      case AttentionReason.overdue:
+        return 'overdue';
+      case AttentionReason.pausedLong:
+        return 'paused_long';
+    }
+  }
+
   /// Подпись в сводке: «3 не назначены». Число подставляет виджет.
   String get title {
     switch (this) {
@@ -31,6 +43,14 @@ extension AttentionReasonLabel on AttentionReason {
         return 'на паузе дольше часа';
     }
   }
+}
+
+/// Причина из ответа ручки; незнакомое или пустое — `null`, «не требует».
+AttentionReason? attentionReasonFromApi(dynamic value) {
+  for (final AttentionReason r in AttentionReason.values) {
+    if (r.apiName == value) return r;
+  }
+  return null;
 }
 
 class WorkAttention {

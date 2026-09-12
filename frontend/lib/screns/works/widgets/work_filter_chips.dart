@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../helper/class_colors.dart';
 import '../../schedule/widgets/schedule_search_field.dart';
 import '../models/work_counts.dart';
+import '../models/work_employee.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
+import '../models/work_section.dart';
 import 'work_summary_bar.dart';
 
 /// Панель над лентой работ: чипсы статусов и видов со счётчиками, «Архив»
@@ -30,17 +32,18 @@ class WorkFilterChips extends StatelessWidget {
     required this.filters,
     required this.counts,
     required this.onChanged,
-    this.sections = const <String>[],
-    this.performers = const <String>[],
+    this.sections = const <WorkSection>[],
+    this.employees = const <WorkEmployee>[],
   }) : super(key: key);
 
   final WorkFilters filters;
   final WorkCounts counts;
   final ValueChanged<WorkFilters> onChanged;
 
-  /// Справочники для выпадашек — из ответа ленты.
-  final List<String> sections;
-  final List<String> performers;
+  /// Справочники для выпадашек — из ответа ленты. Механики — те же, кого
+  /// можно назначить: отдельного списка исполнителей у ручки нет.
+  final List<WorkSection> sections;
+  final List<WorkEmployee> employees;
 
   static const double pillHeight = 24;
   static const double fontSize = 10;
@@ -120,22 +123,26 @@ class WorkFilterChips extends StatelessWidget {
             children: <Widget>[
               _DropChip(
                 label: 'Участок',
-                value: filters.section,
-                options: sections,
-                onSelected: (String? v) => onChanged(
+                value: filters.sectionId,
+                options: <int, String>{
+                  for (final WorkSection s in sections) s.id: s.label,
+                },
+                onSelected: (int? v) => onChanged(
                   v == null
                       ? filters.copyWith(clearSection: true)
-                      : filters.copyWith(section: v, mine: false),
+                      : filters.copyWith(sectionId: v, mine: false),
                 ),
               ),
               _DropChip(
                 label: 'Механик',
-                value: filters.performer,
-                options: performers,
-                onSelected: (String? v) => onChanged(
+                value: filters.performerId,
+                options: <int, String>{
+                  for (final WorkEmployee e in employees) e.id: e.name,
+                },
+                onSelected: (int? v) => onChanged(
                   v == null
                       ? filters.copyWith(clearPerformer: true)
-                      : filters.copyWith(performer: v),
+                      : filters.copyWith(performerId: v),
                 ),
               ),
               // «Мои участки» и один участок — взаимно исключают: выбранный
@@ -177,6 +184,9 @@ class WorkFilterChips extends StatelessWidget {
 /// Выпадашка в виде чипса: «Участок: все ▾», выбранное — «Участок: Центр ✕».
 /// Рисуется как [_Chip], чтобы ряд читался одним рядом; стрелка вместо
 /// счётчика говорит, что за ним список, а не переключатель.
+/// Выпадашка «Участок» / «Механик»: значение — id, подпись — из
+/// справочника. Выбранное, чего в справочнике уже нет (ушло из ленты после
+/// опроса), показывается номером — чипс остаётся снимаемым.
 class _DropChip extends StatelessWidget {
   const _DropChip({
     Key? key,
@@ -187,32 +197,36 @@ class _DropChip extends StatelessWidget {
   }) : super(key: key);
 
   final String label;
-  final String? value;
-  final List<String> options;
-  final ValueChanged<String?> onSelected;
+  final int? value;
+  final Map<int, String> options;
+  final ValueChanged<int?> onSelected;
+
+  /// Пункт «Все»: id на бэке с единицы, ноль свободен.
+  static const int _all = 0;
 
   @override
   Widget build(BuildContext context) {
     final bool active = value != null;
-    return PopupMenuButton<String>(
+    final String? title = value == null ? null : options[value] ?? '№$value';
+    return PopupMenuButton<int>(
       tooltip: label,
       padding: EdgeInsets.zero,
-      onSelected: (String v) => onSelected(v == '' ? null : v),
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
-          value: '',
+      onSelected: (int v) => onSelected(v == _all ? null : v),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<int>>[
+        const PopupMenuItem<int>(
+          value: _all,
           height: 36,
           child: Text('Все', style: TextStyle(fontSize: 12)),
         ),
-        for (final String o in options)
-          PopupMenuItem<String>(
-            value: o,
+        for (final MapEntry<int, String> o in options.entries)
+          PopupMenuItem<int>(
+            value: o.key,
             height: 36,
             child: Text(
-              o,
+              o.value,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: o == value ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: o.key == value ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ),
@@ -229,7 +243,7 @@ class _DropChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Text(
-              '$label: ${value ?? 'все'}',
+              '$label: ${title ?? 'все'}',
               style: TextStyle(
                 fontSize: WorkFilterChips.fontSize,
                 fontWeight: active ? FontWeight.w500 : FontWeight.w400,

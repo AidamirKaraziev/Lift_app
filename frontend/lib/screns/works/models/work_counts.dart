@@ -27,6 +27,36 @@ class WorkCounts {
     byKind: <WorkKind, int>{},
   );
 
+  /// `counts` из ответа ручки: ключи — слова статусов, видов и причин.
+  factory WorkCounts.fromJson(Map<String, dynamic> json) {
+    Map<String, int> read(String key) {
+      final dynamic raw = json[key];
+      if (raw is! Map) return const <String, int>{};
+      return <String, int>{
+        for (final MapEntry<dynamic, dynamic> e in raw.entries)
+          if (e.value is num) e.key.toString(): (e.value as num).toInt(),
+      };
+    }
+
+    final Map<String, int> status = read('by_status');
+    final Map<String, int> kind = read('by_kind');
+    final Map<String, int> attention = read('by_attention');
+    return WorkCounts(
+      byStatus: <WorkStatus, int>{
+        for (final WorkStatus s in WorkStatus.values)
+          if (status[s.name] != null) s: status[s.name]!,
+      },
+      byKind: <WorkKind, int>{
+        for (final WorkKind k in WorkKind.values)
+          if (kind[kindPathSegment(k)] != null) k: kind[kindPathSegment(k)]!,
+      },
+      byAttention: <AttentionReason, int>{
+        for (final AttentionReason r in AttentionReason.values)
+          if (attention[r.apiName] != null) r: attention[r.apiName]!,
+      },
+    );
+  }
+
   int ofStatus(WorkStatus status) => byStatus[status] ?? 0;
   int ofKind(WorkKind kind) => byKind[kind] ?? 0;
   int ofAttention(AttentionReason reason) => byAttention[reason] ?? 0;
@@ -35,11 +65,12 @@ class WorkCounts {
   int get attentionTotal =>
       byAttention.values.fold<int>(0, (int a, int b) => a + b);
 
+  /// Счёт на месте — для фикстуры; с ручки числа приходят готовыми.
   static WorkCounts count(
     List<WorkItem> items,
     WorkFilters filters, {
     DateTime? now,
-    Set<String> mySections = const <String>{},
+    Set<int> mySections = const <int>{},
   }) {
     final WorkFilters forStatus = filters.copyWith(clearStatus: true);
     final WorkFilters forKind = filters.copyWith(clearKind: true);
