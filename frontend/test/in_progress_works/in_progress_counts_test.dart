@@ -1,19 +1,14 @@
-/// Три числа у пункта меню «Сданные работы».
+/// Числа «идёт / с проблемой» из блока «Сейчас в работе».
 ///
-/// Проверяется то, что решает макет и чего не видно в коде: порядок от
-/// спокойного к срочному, нули не показываются, сотни сворачиваются в «99+»,
-/// а числа работ приходят из того же ответа, что и список, и переживают
-/// неудачный запрос.
+/// Проверяется, что числа приходят из того же ответа, что и список, и
+/// переживают неудачный запрос. Таблетка в меню их больше не показывает —
+/// см. `test/works/unreviewed_chip_test.dart`.
 library;
 
 import 'package:els/screns/in_progress_works/bloc/in_progress_works_bloc.dart';
 import 'package:els/screns/in_progress_works/in_progress_counts.dart';
 import 'package:els/screns/in_progress_works/models/in_progress_work.dart';
 import 'package:els/screns/in_progress_works/repository/in_progress_works_repository.dart';
-import 'package:els/screns/in_progress_works/widgets/work_counts_chips.dart';
-import 'package:els/screns/submitted_works/unreviewed_counter.dart';
-import 'package:els/helper/count_chip.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _feed({int total = 4, int problems = 1}) {
@@ -51,80 +46,9 @@ class _Repository extends InProgressWorksRepository {
   }
 }
 
-Future<void> _pumpChips(WidgetTester tester) {
-  return tester.pumpWidget(
-    const MaterialApp(
-      home: Scaffold(body: WorkCountsChips()),
-    ),
-  );
-}
-
-/// Слева направо, как их видит человек.
-double _x(WidgetTester tester, String text) =>
-    tester.getTopLeft(find.text(text)).dx;
-
 void main() {
   setUp(() {
     inProgressCounts.value = InProgressCounts.none;
-    unreviewedWorksCount.value = 0;
-  });
-
-  testWidgets('порядок чисел — от спокойного к срочному',
-      (WidgetTester tester) async {
-    unreviewedWorksCount.value = 3;
-    inProgressCounts.value = const InProgressCounts(total: 5, problems: 1);
-    await _pumpChips(tester);
-
-    // «Три ждут меня, пять в работе, одна стоит».
-    expect(_x(tester, '3'), lessThan(_x(tester, '5')));
-    expect(_x(tester, '5'), lessThan(_x(tester, '1')));
-  });
-
-  testWidgets('всё проверено — серой таблетки нет, работы на месте',
-      (WidgetTester tester) async {
-    inProgressCounts.value = const InProgressCounts(total: 4, problems: 1);
-    await _pumpChips(tester);
-
-    expect(find.text('4'), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
-    expect(find.byType(CountChip), findsNWidgets(2));
-  });
-
-  testWidgets('проблем нет — нет и второй таблетки',
-      (WidgetTester tester) async {
-    inProgressCounts.value = const InProgressCounts(total: 4, problems: 0);
-    await _pumpChips(tester);
-
-    expect(find.text('4'), findsOneWidget);
-    expect(find.text('0'), findsNothing);
-  });
-
-  testWidgets('ничего не идёт и всё проверено — в меню пусто, а не нули',
-      (WidgetTester tester) async {
-    await _pumpChips(tester);
-
-    expect(find.byType(CountChip), findsNothing);
-    expect(find.byType(Text), findsNothing);
-  });
-
-  testWidgets('сотня работ сворачивается в «99+», строка меню не разъезжается',
-      (WidgetTester tester) async {
-    inProgressCounts.value = const InProgressCounts(total: 137, problems: 100);
-    await _pumpChips(tester);
-
-    expect(find.text('99+'), findsNWidgets(2));
-  });
-
-  testWidgets('числа меняются сами, вслед за значением',
-      (WidgetTester tester) async {
-    inProgressCounts.value = const InProgressCounts(total: 4, problems: 1);
-    await _pumpChips(tester);
-
-    inProgressCounts.value = const InProgressCounts(total: 5, problems: 0);
-    await tester.pump();
-
-    expect(find.text('5'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
   });
 
   test('числа берутся из того же ответа, что и список', () async {

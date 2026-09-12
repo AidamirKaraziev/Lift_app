@@ -1,6 +1,5 @@
 import 'package:els/dispatcher/user_page_dispatcher.dart';
-import 'package:els/foreman/task_foreman/task_screen_foreman.dart';
-import 'package:els/screns/task/view/task_screen.dart';
+import 'application_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../helper/class_colors.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../helper/session.dart';
-import '../screns/in_progress_works/widgets/work_counts_chips.dart';
+import '../screns/works/widgets/unreviewed_chip.dart';
 import '../screns/user/user_contact.dart';
 import 'app_drawer.dart';
 import 'app_router.dart';
@@ -41,11 +41,10 @@ class ShellDrawer extends StatelessWidget {
           onLogout: () async {
             if (await confirmLogout(context)) await signOut();
           },
-          // Таблетки «сколько работ ждёт, идёт, стоит» — на «Работах»:
-          // раньше стояли на «Сданных работах» прораба, теперь те — вкладка
-          // внутри «Работ» у обеих ролей. Первое значение кладёт оболочка.
+          // Число непросмотренных — на «Работах» у обеих ролей. Первое
+          // значение кладёт оболочка при входе, дальше — лента.
           trailing: const <AppSection, Widget>{
-            AppSection.works: WorkCountsChips(),
+            AppSection.works: UnreviewedChip(),
           },
         );
       },

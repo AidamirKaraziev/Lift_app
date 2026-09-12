@@ -1,75 +1,80 @@
 ---
-этап: E03·S06 — вывести топ сотрудников на главной прораба
+этап: E03·S07 — бейдж непросмотренных работ у пункта «Работы»
 статус: закрыт
 дата: 2026-09-12
 план: .claude/plan/E03-edinaya-navigatsiya.md
 ---
 
-# Передача: у прораба тот же топ сотрудников, что у админа; следующий — S07 (бейдж «Работы»)
+# Передача: бейдж в бургере живёт вместе с лентой; следующий — S08 (снос замещённого)
 
 ## Сделано и проверено
 
-- «Главная» была общей ещё с S02; отличие было одно — прорабу прятали
-  переключатель «механики / прорабы», потому что ручка отвечала ему 403 на
-  `kind=foreman`. Заказчик просил «общий топ», решение 2026-08-14
-  пересмотрено: бэк отдаёт рейтинг прорабов прорабу (e853fd9), фронт
-  показывает оба переключателя всем (bfe8628).
-- `TopEmployees` принимает `repository` для тестов; новый виджет-тест
-  `frontend/test/home/top_employees_switches_test.dart` (3 теста).
-- `make lint` чист; `pytest tests/test_api_top_employees.py` — 25;
-  `flutter test` — 548; `dart analyze` по `top_employees`, `test/home` — 0.
-- Руками на `make up` + `app-live` под `pr@mail.ru`: оба переключателя,
-  «Прорабы» → `GET /statistics/top-employees?kind=foreman` 200, список
-  прорабов отрисован.
-- Vault: заметка-решение о рейтинге и матрица прав обновлены (в bfe8628).
-- Оба коммита на ветке `fix/apk-api-origin`, дерево чистое.
+- Бейдж у «Работы» стоял ещё с S02 (`WorkCountsChips`, серая таблетка из
+  `unreviewedWorksCount`, при нуле скрыта). Чего не было — связи с лентой:
+  теперь `WorksBloc._refreshCounts` после непустого дифа опроса и после
+  «назначить»/«проверил» дёргает `WorksRepository.unreviewedCount()` и кладёт
+  число в нотифайер (492c59b). API-реализация делегирует в
+  `SubmittedWorksRepository`, фикстура считает `submitted && !reviewed`.
+- Тест «перемена и «проверил» обновляют бейдж» в `test/works/works_bloc_test.dart`;
+  `flutter test test/works test/in_progress_works test/navigation` — 153;
+  `dart analyze lib/screns/works test/works` — 0; `make lint` чист.
+- Руками на `make up`: `app-live` под `pr@mail.ru` — бургер показывает
+  `11 · 6 · 2`, у механика пункта нет. `works-live` (5615): «проверил» на
+  заявке №58 → `POST /work/request/58/review/` 200 → `GET /work/feed?…&limit=1`
+  → `GET /work/submitted/unreviewed-count`; та же пара повторилась за такт
+  опроса, когда диф увидел перемену.
 
 ## Не доделано
 
-- Описание ручки в OpenAPI поправлено, снапшот `openapi_surface.json`
-  описаний не хранит — менять не пришлось.
+- Делегирование `ApiWorksRepository.unreviewedCount()` тестом не покрыто —
+  у `SubmittedWorksRepository` нет инъекции http-клиента. Сознательно.
+- **Новая лента «Работы» ещё не в оболочке**: на `make up` пункт «Работы»
+  открывает старый раздел подрядчика (вкладки «Задачи / Выполненные /
+  Сданные», `navigation/works_section.dart`). Бейдж с ней связан только через
+  `works-live`. Ввод `WorksScreen` в оболочку — часть S08.
+- Найдено попутно, не чинил: `POST /work/maintenance/272/review/` отдаёт
+  прорабу 403, хотя лента показывает работу под чипсом «Мои участки» —
+  область записи расходится с областью чтения (участок берётся от
+  исполнителя, а не от объекта?). Право `WORK_REVIEW` у прораба есть.
 
 ## Следующий этап
 
-**Цель.** S07 — бейдж числа новых/непросмотренных работ на пункте
-«Работы» в бургере.
+**Цель.** S08 — ввести `WorksScreen` в оболочку вместо старого раздела,
+пройти пути админа и прораба на собранном стеке и снести замещённое.
 
-**Готово, когда.** В бургере у «Работы» число из
-`GET /work/submitted/unreviewed-count`, обновляется вместе с лентой, при
-нуле скрыт.
+**Готово, когда.** На `make up` пути админа и прораба пройдены по всем
+пунктам бургера; удалены `my_drawer.dart`, `drawer_foreman.dart`,
+`IntTest.index*`, `screns/task/*`, `task_foreman/*`, `task_completed_*`,
+экраны архива задач; `dart analyze` чист, `flutter build web` собран.
 
 ## Первые шаги
 
-1. `frontend/lib/screns/submitted_works/unreviewed_counter.dart` —
-   `ValueNotifier<int> unreviewedWorksCount`; его уже читают
-   `in_progress_works/widgets/work_counts_chips.dart` и экран сданных,
-   пишет `SubmittedWorksRepository.unreviewedCount()` / `markReviewed()`.
-2. `frontend/lib/navigation/shell_drawer.dart` — пункт
-   `AppSection.works` (`app_section.dart:17`) без бейджа; повесить
-   `ValueListenableBuilder` на счётчик, при 0 не рисовать.
-3. `frontend/lib/screns/works/bloc/works_bloc.dart` — после непустого дифа
-   опроса bloc делает `fetch(limit: 1)` за счётчиками; там же обновить
-   `unreviewedWorksCount` (ручка `/work/feed` считает те же сданные —
-   `backend/.../work_feed.py:198`), чтобы бейдж жил «вместе с лентой».
-4. Проверить под `pr@mail.ru` на `make up` через `app-live` (порт 5610):
-   механик сдаёт работу → число в бургере растёт за такт опроса.
+1. `frontend/lib/navigation/works_section.dart` и `section_index.dart` —
+   где `AppSection.works` резолвится в старый раздел; подменить на
+   `WorksScreen(repository: ApiWorksRepository(), drawer: ShellDrawer())`
+   (образец сборки — `lib/dev/works_live.dart:106`).
+2. `grep -rn "WorkCountsChips\|inProgressCounts" frontend/lib` — решить, что
+   из трёх таблеток остаётся, когда «Сейчас в работе» уходит в ленту;
+   `primeWorkCounts()` в `home_page.dart:93` / `home_foreman.dart:235`.
+3. Снос по списку из «Готово, когда»; после каждого куска
+   `dart analyze lib` и `flutter test`.
+4. `make up` + `app-live` (5610): пройти все пункты бургера под `1` и
+   `pr@mail.ru`. Пароль вводит человек.
 
 ## Не трогать
 
-- `GET /statistics/top-employees` и `top_employees.dart` — S06 закрыт.
-- `GET /work/feed` — правки только если бейдж нельзя взять из `counts`.
-- `lib/navigation/works_section.dart`, `section_index.dart` — снос в S08.
+- `screns/works/bloc/*`, `WorksRepository` — S05/S07 закрыты.
+- `GET /work/feed`, `/review/` и бэк вообще; 403 на №272 — отдельная задача.
 - `pubspec.yaml`/`.lock`; `flutter pub get` не запускать.
 
 ## Уточнить перед стартом
 
-- Бейдж считает «непросмотренные сданные» (как `unreviewed-count`) или
-  «новые» из `counts` ленты `/work/feed`? План говорит первое.
-- Бейдж только у прораба/админа, или механику тоже что-то показывать?
+- Три таблетки у «Работы» (непросмотренные · в работе · с проблемой) остаются
+  как есть, или после сноса «Сейчас в работе» оставить одну — непросмотренные?
+- 403 на «проверил» чужого участка — баг бэка в S08, отдельный этап или
+  ожидаемое поведение?
 
 ## Ссылки
 
-- `frontend/lib/screns/works/bloc/works_bloc.dart` — где лента узнаёт о
-  переменах; сюда подвесить обновление счётчика.
-- `frontend/lib/screns/submitted_works/repository/submitted_works_repository.dart:52`
-  — `unreviewedCount()`, готовый запрос к ручке.
+- `frontend/lib/dev/works_live.dart` — как собирать `WorksScreen` на живом API.
+- `frontend/lib/navigation/shell_drawer.dart` — бургер, который получит `WorksScreen`.

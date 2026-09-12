@@ -9,7 +9,6 @@ import 'package:els/screns/schedule/models/schedule_filters.dart';
 import 'package:els/screns/schedule/view/schedule_section.dart';
 import 'package:els/screns/schedule/view/route_schedule_object_opener.dart';
 import 'package:els/screns/schedule/view/schedules_screen.dart';
-import 'package:els/screns/task/view/task_screen.dart';
 import 'package:els/screns/user/user_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,7 +18,6 @@ import '../../navigation/app_router.dart';
 import '../../navigation/app_section.dart';
 import '../../navigation/section_index.dart';
 import '../../navigation/shell_drawer.dart';
-import '../../navigation/works_section.dart';
 import '../companies/view/companies_screen_archive.dart';
 import '../companies/view/company_page_archive.dart';
 import '../employee/view/employee_archive_page.dart';
@@ -29,12 +27,9 @@ import '../employee/view/employee_page.dart';
 import '../object/view/object_page.dart';
 import '../object/view/object_page_archive.dart';
 import '../object/view/object_screen_archive.dart';
-import '../task/view/archive/task_page_archive.dart';
-import '../task/view/archive/task_screen_archive.dart';
-import '../in_progress_works/widgets/prime_work_counts.dart';
 import '../submitted_works/repository/submitted_works_repository.dart';
-import '../submitted_works/view/submitted_works_screen.dart';
-import '../task/view/task_page.dart';
+import '../works/repository/api_works_repository.dart';
+import '../works/view/works_screen.dart';
 
 ///Главная User — оболочка админа.
 ///
@@ -48,10 +43,6 @@ StreamController myStream = StreamController.broadcast();
 
 ///Это временно ====================================================
 StreamController myStreamListPlanetTO = StreamController.broadcast();
-/// ================================================================
-
-///Это временно ====================================================
-StreamController myStreamTask = StreamController.broadcast();
 /// ================================================================
 
 ///Это временно ====================================================
@@ -90,7 +81,10 @@ class _HomePageState extends State<HomePage> {
     });
     appRouter.addListener(_onRoute);
     _enter(appRouter.section);
-    primeWorkCounts();
+    // Таблетка у «Работ» видна с любого раздела — число берём при входе, не
+    // дожидаясь, пока человек откроет ленту. Ошибку глотаем: из-за неё нельзя
+    // не пустить в систему.
+    const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
   }
 
   @override
@@ -199,8 +193,8 @@ class _HomePageState extends State<HomePage> {
     ///Графики 1 — заглушка: раздел строится в `_scheduleSection`.
     const SizedBox.shrink(),
 
-    ///Заявки 2
-    const TaskScreen(),
+    ///Работы 2 — единая лента заявок и актов
+    WorksScreen(repository: ApiWorksRepository(), drawer: const ShellDrawer()),
 
     ///Обьекты 3
     const ObjectScreen(),
@@ -214,8 +208,8 @@ class _HomePageState extends State<HomePage> {
     ///Сотрудники 6
      const EmployeesScreen(),
 
-    ///Задачи 7
-    const TaskScreen(), ///
+    ///Задачи 7 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     ///Охрана Труда — снят, слота нет: дальше номера идут без пропуска
     // const WorksScreen(),
@@ -234,8 +228,8 @@ class _HomePageState extends State<HomePage> {
 
     ///  12 — экран графика подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
-    /// Окно выбранной задачи 13
-    const TaskPage(),
+    /// Окно выбранной задачи 13 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
     ///Окно Test 14 — экран снят, слот держит нумерацию
     const SizedBox.shrink(),
     ///Окно Архив сотрудники 15
@@ -250,27 +244,11 @@ class _HomePageState extends State<HomePage> {
     const ObjectScreenArchive(),
     ///Окно Архив выбранного объекта 20
     const ObjectPageArchive(),
-    ///Окно Архив Задач 21
-    const TaskScreenArchive(),
-    ///Окно Архив выбранной задачи 22
-    const TaskPageArchive(),
-
-    /// Лента сданных работ 23 — та же, что у прораба: вкладка «Сданные»
-    const SubmittedWorksScreen(drawer: ShellDrawer()),
+    ///Окно Архив Задач 21 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
+    ///Окно Архив выбранной задачи 22 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
   ];
-
-  /// Тело оболочки: вкладки «Работ» поверх одного из старых экранов, иначе
-  /// экран по индексу как есть.
-  Widget _body(int index) {
-    final int? tab = _index.worksTabOf(index);
-    if (tab == null) return _screenAt(index);
-    return WorksSection(
-      tabs: _index.worksTabs,
-      selected: tab,
-      onSelect: (int i) => _show(_index.worksTabs[i].index),
-      child: _screenAt(index),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +261,7 @@ class _HomePageState extends State<HomePage> {
             const Expanded(flex: 2, child: ShellDrawer()),
 
           /// Body
-          Expanded(flex: 8, child: _body(IntTest.indexScreens)),
+          Expanded(flex: 8, child: _screenAt(IntTest.indexScreens)),
         ],
       ),
     );

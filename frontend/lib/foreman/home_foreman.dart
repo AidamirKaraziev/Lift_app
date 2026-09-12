@@ -1,10 +1,6 @@
 import 'dart:async';
 import 'package:els/screns/schedule/bloc/schedules_bloc.dart';
 import 'package:els/foreman/companies_foreman/companies_screen_foreman.dart';
-import 'package:els/foreman/task_foreman/task_completed_foreman/task_page_completed_foreman.dart';
-import 'package:els/foreman/task_foreman/task_completed_foreman/task_screen_completed_foreman.dart';
-import 'package:els/foreman/task_foreman/task_page_foreman.dart';
-import 'package:els/foreman/task_foreman/task_screen_foreman.dart';
 import 'package:els/foreman/user_page_foreman.dart';
 import 'package:flutter/material.dart';
 import '../helper/class_colors.dart';
@@ -12,19 +8,17 @@ import '../navigation/app_router.dart';
 import '../navigation/app_section.dart';
 import '../navigation/section_index.dart';
 import '../navigation/shell_drawer.dart';
-import '../navigation/works_section.dart';
 import '../screns/home/home_screen.dart';
 import '../screns/companies/view/company_page.dart';
 import '../screns/employee/view/employee_page.dart';
 import '../screns/home_page/home_page.dart';
-import '../screns/in_progress_works/widgets/prime_work_counts.dart';
 import '../screns/report/report_screen.dart';
 import '../screns/schedule/view/schedule_section.dart';
 import '../screns/schedule/view/route_schedule_object_opener.dart';
 import '../screns/schedule/view/schedules_screen.dart';
 import '../screns/submitted_works/repository/submitted_works_repository.dart';
-import '../screns/submitted_works/view/submitted_works_screen.dart';
-import '../screns/task/view/task_page.dart';
+import '../screns/works/repository/api_works_repository.dart';
+import '../screns/works/view/works_screen.dart';
 import '../screns/user/user_page.dart';
 import 'companies_foreman/companies_arhive_foreman/companies_screen_archive_foreman.dart';
 import 'companies_foreman/companies_arhive_foreman/company_page_archive_foreman.dart';
@@ -77,7 +71,6 @@ class _HomeForemanState extends State<HomeForeman> {
         getListObjectForeman();
         break;
       case AppSection.works:
-        getListTaskForeman();
         // Число могло устареть, пока прораб сидел в другом разделе: механик
         // закрывает заявки не спрашивая.
         const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
@@ -138,8 +131,8 @@ class _HomeForemanState extends State<HomeForeman> {
     ///Графики 1 — заглушка: раздел строится в `_scheduleSection`.
     const SizedBox.shrink(),
 
-    ///Заявки 2
-    const TaskScreenForeman(),
+    ///Работы 2 — единая лента заявок и актов
+    WorksScreen(repository: ApiWorksRepository(), drawer: const ShellDrawer()),
 
     ///Компании 3
     const CompaniesScreenForeman(),
@@ -165,8 +158,8 @@ class _HomeForemanState extends State<HomeForeman> {
     ///  10 — экран графика подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
 
-    /// Окно выбранной задачи 11
-    const TaskPage(),
+    /// Окно выбранной задачи 11 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     /// Окно архив объекты 12
     const ObjectScreenArchiveForeman(),
@@ -177,14 +170,14 @@ class _HomeForemanState extends State<HomeForeman> {
     /// Окно выбранного графика 14 — экран подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
 
-    /// Окно выбранной задачи 15
-    const TaskPageForeman(),
+    /// Окно выбранной задачи 15 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
-    /// Окно выполненых задачи 16
-    const TaskScreenCompletedForeman(),
+    /// Окно выполненых задачи 16 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
-    /// Окно выбранной выполненой задачи 17
-    const TaskPageCompletedForeman(),
+    /// Окно выбранной выполненой задачи 17 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     /// Окно выбранной компании 18
     const CompanyPageForeman(),
@@ -207,8 +200,8 @@ class _HomeForemanState extends State<HomeForeman> {
     /// Окно User 24
     const OpenViewUserForeman(),
 
-    /// Лента сданных работ 25
-    const SubmittedWorksScreen(drawer: ShellDrawer()),
+    /// Лента сданных работ 25 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     /// Главная 26 — до S06 админский экран как есть: у прораба своей нет
     const HomeScreen(),
@@ -229,23 +222,12 @@ class _HomeForemanState extends State<HomeForeman> {
     getListObjectForeman();
     // Список объектов для графиков больше не тянем: новый раздел «Графики»
     // грузит себя сам, а этот вызов кормил только экран подрядчика.
-    getListTaskForeman();
     getListCompanyForeman();
     getListEmployeeForeman();
-    primeWorkCounts();
-  }
-
-  /// Тело оболочки: вкладки «Работ» поверх одного из старых экранов, иначе
-  /// экран по индексу как есть.
-  Widget _body(int index) {
-    final int? tab = _index.worksTabOf(index);
-    if (tab == null) return _screenAt(index);
-    return WorksSection(
-      tabs: _index.worksTabs,
-      selected: tab,
-      onSelect: (int i) => _show(_index.worksTabs[i].index),
-      child: _screenAt(index),
-    );
+    // Таблетка у «Работ» видна с любого раздела — число берём при входе, не
+    // дожидаясь, пока прораб откроет ленту. Ошибку глотаем: из-за неё нельзя
+    // не пустить в систему.
+    const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
   }
 
   @override
@@ -259,7 +241,7 @@ class _HomeForemanState extends State<HomeForeman> {
             const Expanded(flex: 2, child: ShellDrawer()),
 
           /// Body
-          Expanded(flex: 8, child: _body(IntTest.indexScreensForeman)),
+          Expanded(flex: 8, child: _screenAt(IntTest.indexScreensForeman)),
         ],
       ),
     );

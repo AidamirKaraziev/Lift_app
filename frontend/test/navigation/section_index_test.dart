@@ -12,15 +12,6 @@ void main() {
         expect(index.sectionOf(index.rootOf(s)), s, reason: s.title);
       }
     });
-
-    test('роль $roleId: вкладки «Работ» — экраны раздела «Работы»', () {
-      expect(index.worksTabs.first.index, index.rootOf(AppSection.works));
-      for (int i = 0; i < index.worksTabs.length; i++) {
-        final WorksTab tab = index.worksTabs[i];
-        expect(index.sectionOf(tab.index), AppSection.works, reason: tab.title);
-        expect(index.worksTabOf(tab.index), i);
-      }
-    });
   }
 
   test('профиль ничейный: подсветка остаётся на прежнем разделе', () {
@@ -29,13 +20,12 @@ void main() {
     expect(SectionIndex.foreman.sectionOf(24), isNull);
   });
 
-  test('у обеих ролей три вкладки «Работ», «Сданные» — последняя', () {
-    for (final SectionIndex index in <SectionIndex>[
-      SectionIndex.admin,
-      SectionIndex.foreman,
-    ]) {
-      expect(index.worksTabs.map((WorksTab t) => t.title),
-          <String>['Задачи', 'Выполненные', 'Сданные']);
+  test('слоты снятых экранов задач ничейные', () {
+    for (final int i in <int>[7, 13, 21, 22, 23]) {
+      expect(SectionIndex.admin.sectionOf(i), isNull, reason: 'admin $i');
+    }
+    for (final int i in <int>[11, 15, 16, 17, 25]) {
+      expect(SectionIndex.foreman.sectionOf(i), isNull, reason: 'foreman $i');
     }
   });
 }

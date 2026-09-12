@@ -1,10 +1,9 @@
 import 'package:els/dispatcher/user_page_dispatcher.dart';
-import 'package:els/foreman/task_foreman/task_screen_foreman.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../helper/class_colors.dart';
 import '../../../../helper/header/header.dart';
-import '../../../../helper/my_drawer/my_drawer.dart';
+import '../drawer_dispatcher.dart';
 import '../../../screns/companies/view/companies_screen.dart';
 import '../../../screns/employee/widgets/topButton.dart';
 import '../../../screns/home_page/home_page.dart';
@@ -81,7 +80,7 @@ class _ApplicationScreenCompletedState extends State<ApplicationScreenCompleted>
       builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
         return Scaffold(
           key: myOpenDrawer,
-          drawer: const MyDrawer(),
+          drawer: const DrawerDispatcher(),
           body: Container(
             color: ColorApp.myColorTransparent,
             child: Column(

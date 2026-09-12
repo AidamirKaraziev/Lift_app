@@ -23,7 +23,6 @@ import '../screns/auth/role_stub_screen.dart';
 import '../screns/employee/bloc/employee_bloc.dart';
 import '../screns/home_page/home_page.dart';
 import '../screns/object/bloc/object_bloc.dart';
-import '../screns/task/bloc_task/task_bloc.dart';
 import '../screns/user/user_contact.dart';
 import 'api_client.dart';
 import 'api_config.dart';
@@ -143,7 +142,6 @@ void primeData(BuildContext context) {
 
   context.read<UserBloc>().add(UserGetEvent());
   context.read<MyObjectBloc>().add(ObjectGetEvent());
-  context.read<TaskBloc>().add(TaskGetEvent());
 
   // Клиенту сотрудники и контрагенты закрыты правами — спрашивать их значит
   // гарантированно получить `403` на старте каждого его сеанса.

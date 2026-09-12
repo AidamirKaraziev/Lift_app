@@ -5,7 +5,6 @@ import 'package:els/navigation/app_route.dart';
 import 'package:els/navigation/app_router.dart';
 import 'package:els/screns/employee/bloc/employee_bloc.dart';
 import 'package:els/screns/object/bloc/object_bloc.dart';
-import 'package:els/screns/task/bloc_task/task_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -55,7 +54,6 @@ class MyApp extends StatelessWidget {
         BlocProvider<CompanyBloc>(create: (context) => CompanyBloc()),
         BlocProvider<UserBloc>(create: (context) => UserBloc()),
         BlocProvider<MyObjectBloc>(create: (context) => MyObjectBloc()),
-        BlocProvider<TaskBloc>(create: (context) => TaskBloc()),
       ],
       child: MaterialApp.router(
         routerDelegate: appRouter,
