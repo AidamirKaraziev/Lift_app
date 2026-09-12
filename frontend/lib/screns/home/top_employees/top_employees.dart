@@ -3,10 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../helper/calendar/month_picker.dart';
 import '../../../helper/class_colors.dart';
-import '../../../helper/session.dart';
 import '../../responsive_screens/responsive.dart';
 import 'bloc/top_employees_bloc.dart';
 import 'models/top_employees_report.dart';
+import 'repository/top_employees_repository.dart';
 
 /// Сколько строк показываем на одной странице карточки.
 const int _kPageSize = 5;
@@ -23,12 +23,15 @@ const int _kPageSize = 5;
 /// карточка, жирный заголовок, выбор месяца стрелками, серая шапка колонок,
 /// нейтральная строка с цветным бейджем справа.
 class TopEmployees extends StatelessWidget {
-  const TopEmployees({Key? key}) : super(key: key);
+  const TopEmployees({Key? key, this.repository}) : super(key: key);
+
+  /// Подменяется в тестах; в приложении карточка ходит в ручку сама.
+  final TopEmployeesRepository? repository;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<TopEmployeesBloc>(
-      create: (_) => TopEmployeesBloc()
+      create: (_) => TopEmployeesBloc(repository: repository)
         ..add(TopEmployeesRequested(
           month: DateTime.now(),
           limit: _kPageSize,
@@ -183,9 +186,9 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Два переключателя: «лучшие или худшие» и — только у админа — «механики или
-/// прорабы». Прорабу второй не показываем: ручка ответит ему `403`, а кнопка,
-/// которая гарантированно ошибается, хуже её отсутствия.
+/// Два переключателя: «лучшие или худшие» и «механики или прорабы». Оба видны
+/// всем, кому открыта карточка: с 2026-09-12 ручка отдаёт рейтинг прорабов и
+/// прорабу — заказчик попросил на его главной тот же топ, что у админа.
 class _Switches extends StatelessWidget {
   const _Switches({Key? key, required this.state, required this.compact})
       : super(key: key);
@@ -196,7 +199,6 @@ class _Switches extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool enabled = state is! TopEmployeesLoading;
-    final bool isAdmin = idUserTest == Roles.admin;
 
     return Wrap(
       spacing: 8.0,
@@ -214,19 +216,18 @@ class _Switches extends StatelessWidget {
           onChanged: (EmployeeOrder value) =>
               _request(context, state, order: value),
         ),
-        if (isAdmin)
-          _Segmented<EmployeeKind>(
-            value: state.kind,
-            enabled: enabled,
-            compact: compact,
-            options: const <EmployeeKind>[
-              EmployeeKind.mechanic,
-              EmployeeKind.foreman,
-            ],
-            labelOf: (EmployeeKind value) => value.label,
-            onChanged: (EmployeeKind value) =>
-                _request(context, state, kind: value),
-          ),
+        _Segmented<EmployeeKind>(
+          value: state.kind,
+          enabled: enabled,
+          compact: compact,
+          options: const <EmployeeKind>[
+            EmployeeKind.mechanic,
+            EmployeeKind.foreman,
+          ],
+          labelOf: (EmployeeKind value) => value.label,
+          onChanged: (EmployeeKind value) =>
+              _request(context, state, kind: value),
+        ),
       ],
     );
   }
