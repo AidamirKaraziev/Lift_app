@@ -157,11 +157,14 @@ class TestAccess:
         assert _get(client_with_db).status_code == 403
 
     @pytest.mark.integration
-    def test_foreman_ranking_is_admin_only(self, client_with_db, as_role):
-        as_role(FOREMAN)
-        assert _get(client_with_db, kind="foreman").status_code == 403
+    @pytest.mark.parametrize("role", [ADMIN, FOREMAN])
+    def test_foreman_ranking_is_open_to_both(self, client_with_db, as_role, role):
+        """Рейтинг прорабов открыт тем же, кому открыт рейтинг механиков.
 
-        as_role(ADMIN)
+        До 2026-09-12 прорабу здесь отвечали 403; заказчик попросил общий топ,
+        и ветка по роли снята.
+        """
+        as_role(role)
         assert _get(client_with_db, kind="foreman").status_code == 200
 
 
