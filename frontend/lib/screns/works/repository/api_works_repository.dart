@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../helper/api_client.dart';
 import '../../../helper/api_config.dart';
+import '../../submitted_works/repository/submitted_works_repository.dart';
 import '../models/work_counts.dart';
 import '../models/work_employee.dart';
 import '../models/work_filters.dart';
@@ -104,6 +105,12 @@ class ApiWorksRepository implements WorksRepository {
   @override
   Future<WorkItem> review(WorkItem item) =>
       _act(item, 'review', const <String, dynamic>{});
+
+  /// Ручка `GET /work/submitted/unreviewed-count` уже обёрнута лентой сданных
+  /// — второго клиента к ней не заводим.
+  @override
+  Future<int> unreviewedCount() =>
+      const SubmittedWorksRepository().unreviewedCount();
 
   Future<WorkItem> _act(WorkItem item, String action, Object body) async {
     final Uri uri = Uri.parse(

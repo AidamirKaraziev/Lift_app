@@ -11,6 +11,7 @@ import 'package:els/screns/works/models/work_employee.dart';
 import 'package:els/screns/works/models/work_filters.dart';
 import 'package:els/screns/works/models/work_item.dart';
 import 'package:els/screns/works/repository/works_repository.dart';
+import 'package:els/screns/submitted_works/unreviewed_counter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final DateTime _now = DateTime(2026, 9, 12, 12);
@@ -50,6 +51,8 @@ class _Repository implements WorksRepository {
   final List<DateTime> sinces = <DateTime>[];
   WorkCounts counts = WorkCounts.empty;
   bool failAssign = false;
+  int unreviewed = 0;
+  int unreviewedAsked = 0;
 
   @override
   Future<WorksFeed> fetch(
@@ -92,6 +95,12 @@ class _Repository implements WorksRepository {
   @override
   Future<WorkItem> review(WorkItem item) async =>
       item.copyWith(reviewed: true);
+
+  @override
+  Future<int> unreviewedCount() async {
+    unreviewedAsked++;
+    return unreviewed;
+  }
 }
 
 Future<WorksBloc> _loaded(_Repository repository) async {
@@ -113,6 +122,10 @@ List<String> _keys(WorksBloc bloc) =>
     bloc.state.feed!.items.map((WorkItem i) => i.key).toList();
 
 void main() {
+  setUp(() {
+    unreviewedWorksCount.value = 0;
+  });
+
   test('первый запрос ставит момент опроса до ответа', () async {
     final _Repository repository = _Repository(<WorkItem>[_item(1)]);
     final WorksBloc bloc = await _loaded(repository);
@@ -198,6 +211,35 @@ void main() {
     expect(bloc.state.feed!.counts.ofStatus(WorkStatus.accepted), 7);
     // Строки от лёгкого запроса не берутся: он отдаёт их пустыми.
     expect(_keys(bloc), <String>['request:1']);
+  });
+
+  test('перемена и «проверил» обновляют бейдж непросмотренных в бургере',
+      () async {
+    final _Repository repository = _Repository(<WorkItem>[
+      _item(1, status: WorkStatus.submitted),
+    ]);
+    final WorksBloc bloc = await _loaded(repository);
+    // Первый запрос за бейджем не ходит: число при входе кладёт оболочка.
+    expect(repository.unreviewedAsked, 0);
+
+    bloc.add(const WorksSynced());
+    await _settle();
+    // Пустой диф — бейдж не трогаем.
+    expect(repository.unreviewedAsked, 0);
+    expect(unreviewedWorksCount.value, 0);
+
+    repository.unreviewed = 4;
+    repository.changed = <WorkItem>[_item(2, status: WorkStatus.submitted)];
+    bloc.add(const WorksSynced());
+    await _settle();
+    expect(repository.unreviewedAsked, 1);
+    expect(unreviewedWorksCount.value, 4);
+
+    repository.unreviewed = 3;
+    bloc.add(WorkReviewed(bloc.state.feed!.items.first));
+    await _settle();
+    expect(repository.unreviewedAsked, 2);
+    expect(unreviewedWorksCount.value, 3);
   });
 
   test('«назначить» подменяет строку ответом без перезапроса ленты', () async {

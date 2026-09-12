@@ -4,6 +4,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../submitted_works/unreviewed_counter.dart';
 import '../models/work_employee.dart';
 import '../models/work_filters.dart';
 import '../models/work_item.dart';
@@ -26,6 +27,9 @@ part 'works_state.dart';
 /// отдаёт строку, какой она стала, и её достаточно. Счётчики на чипсах после
 /// любой перемены берутся отдельным лёгким запросом (`limit: 1`): считать их
 /// на клиенте нельзя — на руках одна страница, а числа — по всему отбору.
+/// Тем же запросом обновляется и бейдж непросмотренных у пункта «Работы» в
+/// бургере ([unreviewedWorksCount]): механик сдал — число выросло за такт,
+/// прораб нажал «проверил» — упало, не дожидаясь захода в раздел.
 ///
 /// Такт опроса — у виджета, не здесь: остановить его надо вместе с экраном
 /// и свёрнутым приложением, а про это знает виджет.
@@ -202,8 +206,8 @@ class WorksBloc extends Bloc<WorksEvent, WorksState> {
     await _refreshCounts(emit, serial);
   }
 
-  /// Числа на чипсах и справочники — лёгким запросом, без строк. Не вышло —
-  /// остаются прежние: лента важнее чисел над ней.
+  /// Числа на чипсах, справочники и бейдж в бургере — лёгким запросом, без
+  /// строк. Не вышло — остаются прежние: лента важнее чисел над ней.
   Future<void> _refreshCounts(Emitter<WorksState> emit, int serial) async {
     try {
       final WorksFeed light = await _repository.fetch(state.filters, limit: 1);
@@ -218,6 +222,11 @@ class WorksBloc extends Bloc<WorksEvent, WorksState> {
           ),
         ),
       );
+      // Число кладёт блок, а не репозиторий: он и решает, чей ответ
+      // настоящий, — устаревший не должен менять бургер, как не меняет ленту.
+      final int unreviewed = await _repository.unreviewedCount();
+      if (serial != _serial) return;
+      unreviewedWorksCount.value = unreviewed;
     } catch (_) {
       // Счётчики подождут следующей перемены.
     }

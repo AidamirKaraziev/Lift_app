@@ -160,6 +160,14 @@ class FixtureWorksRepository implements WorksRepository {
     return _replace(item.copyWith(reviewed: true));
   }
 
+  @override
+  Future<int> unreviewedCount() async {
+    await Future<void>.delayed(delay);
+    return _items
+        .where((WorkItem i) => i.status == WorkStatus.submitted && !i.reviewed)
+        .length;
+  }
+
   WorkItem _replace(WorkItem fresh) {
     final int at = _items.indexWhere((WorkItem i) => i.key == fresh.key);
     if (at >= 0) _items[at] = fresh;
