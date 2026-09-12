@@ -17,4 +17,5 @@
 {"date":"2026-09-12","epic":"E03","stage":"S04 отдать единую ленту работ одной ручкой","area":"back","status":"закрыт","session":"f4c19277","commits":["e7f0070"]}
 {"date": "2026-09-12", "epic": "E03", "stage": "S05 подключить ленту к API и сделать её живой", "area": "front", "status": "закрыт", "session": "82588212", "commits": ["44c522f"]}
 {"date": "2026-09-12", "epic": "E03", "stage": "S06 вывести топ сотрудников на главной прораба", "area": "front", "status": "закрыт", "session": "e8c16ca8", "commits": ["6a9896f"]}
-{"date": "2026-09-12", "epic": "E03", "stage": "S07 показать бейдж новых работ на пункте «Работы»", "area": "front", "status": "закрыт", "session": "cb7f160f", "commits": []}
+{"date": "2026-09-12", "epic": "E03", "stage": "S07 показать бейдж новых работ на пункте «Работы»", "area": "front", "status": "закрыт", "session": "cb7f160f", "commits": ["492c59b"]}
+{"date":"2026-09-13","epic":"E03","stage":"S08 проверить на собранном стеке и снести замещённое","area":"front+infra","status":"закрыт","session":"02344c2a","commits":["a8cfdc9"]}
