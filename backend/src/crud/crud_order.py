@@ -162,6 +162,13 @@ class CrudOrder(CRUDBase[Order, OrderCreate, OrderUpdate]):
             # среди колонок модели.
             new_data.done_at = datetime.datetime.utcnow()
 
+        # Смена статуса сбрасывает отметку «проверил»: в единой ленте работ
+        # она значит «прораб посмотрел эту стадию», и после перемены строке
+        # положено вернуться в блок внимания.
+        if new_data.status_id is not None and new_data.status_id != order.status_id:
+            order.reviewed_at = None
+            order.reviewed_by_id = None
+
         # обновление данных
         db_obj = super().update(db=db, db_obj=order, obj_in=new_data)
         return db_obj, 0, None

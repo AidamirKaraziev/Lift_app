@@ -268,6 +268,19 @@ class CrudActFact(CRUDBase[ActFact, ActFactCreate, ActFactUpdate]):
             )
             if code != 0:
                 return None, code, None
+        # Перемена стадии сбрасывает отметку «проверил»: в единой ленте
+        # работ она значит «прораб посмотрел эту стадию», и после перемены
+        # строке положено вернуться в блок внимания. У акта стадия — это
+        # статус и даты начала/закрытия, а не один `status_id`.
+        fields = update_data.dict(exclude_unset=True)
+        stage_changed = any(
+            key in fields and fields[key] != getattr(this_act_fact, key)
+            for key in ("status_id", "started_at", "finished_at")
+        )
+        if stage_changed:
+            this_act_fact.reviewed_at = None
+            this_act_fact.reviewed_by_id = None
+
         # обновление данных
         db_obj = super().update(db=db, db_obj=this_act_fact, obj_in=update_data)
         return db_obj, 0, None
