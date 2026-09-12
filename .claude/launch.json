@@ -291,6 +291,23 @@
       ],
       "cwd": "frontend",
       "port": 5615
+    },
+    {
+      "name": "appointment-order-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/appointment_order_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5616",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5616
     }
   ]
 }

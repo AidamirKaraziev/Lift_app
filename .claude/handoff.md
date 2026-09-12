@@ -1,69 +1,80 @@
 ---
-этап: E03·S08 — «Работы» в оболочке, снос замещённого
+этап: E04·S01 — диалог приказа о назначении на фикстуре
 статус: закрыт
 дата: 2026-09-13
-знание: записано 2026-09-13 (/save-session) · эпик E03 закрыт
-план: .claude/plan/E03-edinaya-navigatsiya.md
+ветка: fix/apk-api-origin
+план: .claude/plan/E04-pismo-o-naznachenii.md
 ---
 
-# Передача: E03 закрыт, лента «Работы» живёт в оболочке обеих ролей
+# Передача: диалог приказа утверждён глазами, дальше — ручка черновика
 
 ## Сделано и проверено
 
-- Пункт «Работы» у админа и прораба открывает `WorksScreen` (слот 2 в
-  `home_page.dart` / `home_foreman.dart`); вкладки «Задачи / Выполненные /
-  Сданные» и `works_section.dart` сняты. Коммит a8cfdc9.
-- У «Работ» одна таблетка — `UnreviewedChip` (`screns/works/widgets/`) на
-  `unreviewedWorksCount`; первое значение кладёт оболочка в `initState`.
-- Удалены `screns/task/*`, `foreman/task_foreman/*`, `helper/my_drawer/`,
-  `drawer_foreman.dart`, `submitted_works_screen.dart`, `prime_work_counts`,
-  `work_counts_chips` — ≈7 900 строк. Слоты снятых экранов держат нумерацию
-  заглушками, `SectionIndex` их не знает (тест «слоты ничейные»).
-- Диспетчер: три запроса заявки/фото перенесены в его `application_screen.dart`,
-  «Выполненные» получили `DrawerDispatcher` вместо `MyDrawer`.
-- `flutter test` — 545; `dart analyze lib test` — новых предупреждений нет;
-  `make lint` чист; `flutter build web` собран.
-- Руками на `make up` + `app-live` (5610): админ `1` и прораб `pr@mail.ru` —
-  все 7 пунктов бургера, карточка объекта и «назад», «Выйти» с диалогом.
+- Кнопка «Приказ о назначении» в блоке документов карточки объекта у админа
+  (`screns/object/view/object_page.dart`) и прораба
+  (`foreman/object_foreman/object_page_foreman.dart`) — общий
+  `AppointmentOrderButton` (`screns/object/appointment_order/widgets/`).
+- Диалог `showAppointmentOrderDialog` (`…/appointment_order/view/`): номер,
+  дата (календарь ru), город, должность и ФИО подписанта правятся; организация,
+  прораб, механик, адрес, список лифтов — только чтение; нет человека или лифтов
+  — жёлтая плашка словами. На ширине < 420 px поля встают столбиком.
+- «Скачать PDF» отдаёт черновик с правками в `onDownload`; колбэка нет —
+  SnackBar «PDF появится в следующем этапе».
+- Модель `AppointmentOrderDraft` + `fromObjectMap` — берёт из карточки адрес,
+  ФИО прораба/механика, один лифт (тип из `factory_model_id.type_object_id.name`,
+  марка из `model`, `load_capacity`); реквизиты пусты до S02. Решено оставить.
+- Фикстура `fixture_appointment_order.dart` (три расклада), превью
+  `lib/dev/appointment_order_preview.dart`, конфиг `appointment-order-preview`
+  (5616) в `.claude/launch.json`. Вид утверждён 2026-09-13 на десктопе и 375 px.
+- `flutter test` — 549 (4 новых в `test/object/`); `dart analyze lib test` —
+  831 = 831 до правок; `flutter build web` собран; `make lint` чист.
+- Не коммичено: все файлы этапа + `roadmap.md` (0/0 → 0/5) в рабочей копии.
 
 ## Не доделано
 
-- **`IntTest.index*` не снят** — 415 мест в 91 файле (карточки объектов,
-  компаний, сотрудников, архивы). Решение 2026-09-13: отдельный этап, в
-  плане его ещё нет — `/plan`. Критерий S08 в подплане сужен.
-- Строки ленты не нажимаются (`onOpen` пуст) — карточка работы отдельный
-  этап; после неё сносить `submitted_works/view,widgets,bloc`,
-  `in_progress_works/widgets/in_progress_*`, `work_card_live`.
-- Найдено, не чинил: `POST /work/maintenance/272/review/` отдаёт прорабу 403
-  при работе под чипсом «Мои участки» — область записи ≠ области чтения.
-- Найдено, не чинил: при «Выйти» с открытым бургером в консоли
-  «FocusScopeNode used after disposed» — `ShellDrawer.onLogout` не закрывает
-  drawer перед `signOut`; шум debug-сборки, вход не ломает.
-- Лента пересоздаётся при уходе в другой раздел (bloc внутри `WorksScreen`);
-  «Графики» держат bloc в оболочке — тот же приём, если понадобится.
+- Кнопка в реальных карточках не нажималась руками на `make up` — только
+  превью на фикстуре. Проверка на стеке — S05.
+- `make test` (бэк) не гонялся: бэк не трогали.
 
 ## Следующий этап
 
-E03 закрыт. Дальше по roadmap — E04 «Письмо о назначении» (подплана нет,
-образец у заказчика запрошен: `els-vault` → «приказ о назначении…»), либо
-новый этап на хвосты E03: карточка работы по клику и снятие `IntTest.index*`.
-Выбор — за человеком в `/plan`.
+**Цель.** S02 — `GET /object/{id}/appointment-order/draft` отдаёт черновик
+приказа: номер пусто, дата сегодня, город и адрес объекта, подписант из
+организации, закреплённые прораб и механик, список лифтов.
+
+**Готово, когда.** Область видимости как у карточки объекта; тест на ручку;
+снимок OpenAPI обновлён (критерий из подплана).
+
+## Первые шаги
+
+1. `backend/src/models/object.py` — `Object` = один лифт с адресом; поля
+   `foreman`, `mechanic`, `factory_model`, `load_capacity`, `organization`.
+2. Форму ответа согласовать с фронтовой `AppointmentOrderDraft`
+   (`frontend/lib/screns/object/appointment_order/model/appointment_order_draft.dart`):
+   `number, date, city, address, organization, signer_position, signer_name,
+   foreman{full_name, position}, mechanic{…}, lifts[{type, brand, load_capacity_kg}]`.
+3. Ручку класть рядом с остальными объектными в `backend/src/api/api_v1/`;
+   снимок OpenAPI — по тому, как делали для `/work/feed`.
 
 ## Не трогать
 
-- `screns/works/bloc/*`, `WorksRepository`, `GET /work/feed` — закрыты S05/S07.
-- Слоты-заглушки в `_screens`/`_screensForeman` — не перенумеровывать:
-  `els-vault/knowledge/decisions/снятые экраны подрядчика оставляют пустой слот…`.
+- `helper/letter_of_appointment.dart`, `foreman/…/letter_of_appointment_foreman.dart`
+  и строка «Документ / Письмо о назначении» (загрузка файла) — снос после S05.
+- Диалог и модель S01 — утверждены; менять только под контракт S02, не вид.
 - `pubspec.yaml`/`.lock`; `flutter pub get` не запускать.
 
 ## Уточнить перед стартом
 
-- Что первым: E04 по образцу заказчика или хвосты E03 (карточка работы,
-  `IntTest.index*`)?
-- 403 на «проверил» чужого участка — баг бэка или ожидаемое право?
+- «Список лифтов объекта»: в БД объект = один лифт, в образце два лифта на
+  одном адресе. Ручка отдаёт один лифт объекта или все объекты с тем же
+  адресом и той же парой прораб/механик?
+- Подписант и город: откуда в `Organization` (есть ли поля директора и города)?
+- Из E03, не чинил: 403 на `POST /work/maintenance/{id}/review/` прорабу под
+  «Мои участки»; «FocusScopeNode used after disposed» при «Выйти» с открытым
+  бургером; `IntTest.index*` — 415 мест, этапа в плане нет.
 
 ## Ссылки
 
-- `.claude/plan/roadmap.md` — порядок эпиков после сдачи.
-- `frontend/lib/dev/works_live.dart` — лента на живом API без оболочки.
-- `frontend/lib/navigation/section_index.dart` — какие слоты сняты и почему.
+- `els-vault/knowledge/business/приказ о назначении ответственных - образец от заказчика для E04.md` — что в приказе.
+- `.claude/plan/E04-pismo-o-naznachenii.md` — критерии S02–S05.
+- `frontend/lib/dev/appointment_order_preview.dart` — увидеть диалог без стека.

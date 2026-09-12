@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:els/helper/api_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gap/gap.dart';
+import 'package:els/screns/object/appointment_order/widgets/appointment_order_button.dart';
 import 'package:els/screns/object/widgets/editing_object.dart';
 import 'package:els/screns/object/widgets/object_accountFreeze.dart';
 import 'package:flutter/material.dart';
@@ -1856,6 +1857,10 @@ class _ObjectPageState extends State<ObjectPage> {
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
+                                        /// Приказ о назначении — E04
+                                        AppointmentOrderButton(
+                                          object: Map<String, dynamic>.from(viewObjectPage),
+                                        ),
 
                                         /// Письмо о назначении
                                         Row(
