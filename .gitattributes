@@ -1,0 +1,3 @@
+.claude/ledger.jsonl merge=union
+els-vault/проект.md merge=union
+.claude/inbox/*.md merge=union
