@@ -21,4 +21,4 @@
 {"date":"2026-09-13","epic":"E03","stage":"S08 проверить на собранном стеке и снести замещённое","area":"front+infra","status":"закрыт","session":"02344c2a","commits":["a8cfdc9"]}
 {"date": "2026-09-13", "epic": "E04", "stage": "S01 сверстать диалог приказа на фикстуре", "area": "front+design", "status": "закрыт", "branch": "fix/apk-api-origin", "session": "f8167c54", "commits": ["4e93f5d"]}
 {"date":"2026-09-13","epic":"E04","stage":"S02 отдать черновик приказа ручкой","area":"back","status":"закрыт","branch":"E04-S02","session":"97409a23","commits":["5d208f5"]}
-{"date":"2026-09-13","epic":"E04","stage":"S03 собрать PDF приказа на сервере","area":"back","status":"закрыт","branch":"E04-S03","session":"d6c0cf70","commits":[]}
+{"date": "2026-09-13", "epic": "E04", "stage": "S03 собрать PDF приказа на сервере", "area": "back", "status": "закрыт", "branch": "E04-S03", "session": "d6c0cf70", "commits": ["b45a146"]}
