@@ -8,6 +8,7 @@
 """
 
 import datetime
+import os
 import uuid
 
 import pytest
@@ -122,11 +123,11 @@ def test_draft_is_built_from_object_card(client_with_db, as_role, full_object):
     assert data["signer_name"] == "Садиков Тимур Аскерович"
     assert data["foreman"] == {
         "full_name": "Ахметов Роман Арсенович",
-        "position": "прораб сервисного участка",
+        "position": "прораба сервисного участка",
     }
     assert data["mechanic"] == {
         "full_name": "Ковалёв Иван Петрович",
-        "position": "электромеханик по лифтам",
+        "position": "электромеханика по лифтам",
     }
     assert data["lifts"] == [
         {"type": "Лифт Пассажирский", "brand": "Wellmaks", "load_capacity_kg": 400}
@@ -184,3 +185,68 @@ def test_scope_matches_object_card(client_with_db, as_role, db_session, full_obj
     db_session.flush()
     assert client_with_db.get(_draft_url(full_object.id)).status_code == 200
     assert client_with_db.get(_draft_url(10**9)).status_code == 404
+
+
+# --- PDF: `POST /object/{id}/appointment-order/pdf` ---------------------------
+
+
+def _pdf_url(object_id):
+    return f"{API}/object/{object_id}/appointment-order/pdf"
+
+
+def test_pdf_is_built_from_the_edited_draft(client_with_db, as_role, full_object):
+    """Файл лежит в `static/objects/{id}/appointment_order/`, ссылка с токеном."""
+    as_role(Role.ADMIN.value)
+    draft = _draft(client_with_db, full_object.id)
+    draft.update(number="10", city="Нальчик")
+
+    response = client_with_db.post(_pdf_url(full_object.id), json=draft)
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["path"].startswith(f"objects/{full_object.id}/appointment_order/")
+    assert data["path"].endswith(".pdf")
+    assert f"{API}/static/{data['path']}?token=" in data["url"]
+    assert data["expires_in"] == settings.FILE_TOKEN_EXPIRE_SECONDS
+    with open(os.path.join("static", data["path"]), "rb") as fh:
+        assert fh.read(4) == b"%PDF"
+
+
+def test_pdf_path_gets_a_fresh_link_from_files_link(
+    client_with_db, as_role, full_object
+):
+    """Минута прошла — `/files/link` выдаёт ссылку заново по видимости объекта."""
+    as_role(Role.ADMIN.value)
+    draft = _draft(client_with_db, full_object.id)
+    path = client_with_db.post(_pdf_url(full_object.id), json=draft).json()["data"][
+        "path"
+    ]
+
+    response = client_with_db.post(f"{API}/files/link", json={"path": path})
+
+    assert response.status_code == 200, response.text
+    assert "token=" in response.json()["data"]["url"]
+
+
+def test_pdf_is_built_even_from_an_empty_draft(client_with_db, as_role, make_object):
+    as_role(Role.ADMIN.value)
+    obj = make_object()
+    draft = _draft(client_with_db, obj.id)
+
+    response = client_with_db.post(_pdf_url(obj.id), json=draft)
+
+    assert response.status_code == 200, response.text
+
+
+def test_pdf_scope_matches_object_card(
+    client_with_db, as_role, db_session, full_object
+):
+    other = Division(title=f"Чужой участок {uuid.uuid4().hex[:6]}")
+    db_session.add(other)
+    db_session.flush()
+    as_role(Role.ADMIN.value)
+    draft = _draft(client_with_db, full_object.id)
+
+    as_role(Role.MECHANIC.value, division_id=other.id)
+    assert client_with_db.post(_pdf_url(full_object.id), json=draft).status_code == 403
+    assert client_with_db.post(_pdf_url(10**9), json=draft).status_code == 404

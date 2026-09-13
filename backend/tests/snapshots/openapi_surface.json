@@ -831,6 +831,15 @@
     "required_body": [],
     "required_params": []
   },
+  "POST /api/v1/object/{object_id}/appointment-order/pdf": {
+    "required_body": [
+      "date",
+      "lifts"
+    ],
+    "required_params": [
+      "object_id"
+    ]
+  },
   "POST /api/v1/order-photo/{order_id}/": {
     "required_body": [],
     "required_params": [

@@ -1,26 +1,33 @@
 import logging
+import os
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.params import Path
 
 from src.api import deps
+from src.config import settings
 from src.core.permissions import Permission
 from src.core.response import ListOfEntityResponse, Meta, SingleEntityResponse
+from src.core.security import create_file_token
 from src.crud.crud_company import crud_company
 from src.crud.crud_object import crud_objects
 from src.crud.users.crud_client import crud_client
 from src.crud.users.crud_universal_user import crud_universal_users
 from src.getters.appointment_order import get_appointment_order_draft
 from src.getters.object import get_object
-from src.schemas.appointment_order import AppointmentOrderDraft
+from src.getters.static_url import static_base_url
+from src.schemas.appointment_order import AppointmentOrderDraft, AppointmentOrderPdfGet
 from src.schemas.object import ObjectCreate, ObjectGet, ObjectUpdate
+from src.services.appointment_order_pdf import build_appointment_order_pdf
 from src.templates_raise import get_raise
 
 PATH_MODEL = "objects"
 PATH_TYPE_LETTER_OF_APPOINTMENT = "letter_of_appointment"
 PATH_TYPE_ACCEPTANCE_CERTIFICATE = "acceptance_certificate"
 PATH_TYPE_ACT_PTO = "act_pto"
+PATH_TYPE_APPOINTMENT_ORDER = "appointment_order"
 
 router = APIRouter()
 
@@ -228,6 +235,63 @@ def get_appointment_order_draft_data(
     )
     get_raise(code=code)
     return SingleEntityResponse(data=get_appointment_order_draft(obj))
+
+
+@router.post(
+    path="/object/{object_id}/appointment-order/pdf",
+    response_model=SingleEntityResponse[AppointmentOrderPdfGet],
+    name="appointment_order_pdf",
+    summary="Собрать PDF приказа о назначении",
+    description=(
+        "📄 Принимает черновик приказа в том виде, в каком человек поправил его "
+        "в диалоге (тело — то же, что отдаёт `draft`), и собирает PDF по "
+        "образцу заказчика: шапка с основанием, два назначения с одним "
+        "перечнем оборудования, подпись, две строки «ознакомлен».\n\n"
+        "Файл кладётся в `static/objects/{id}/appointment_order/`, в базу "
+        "ничего не пишется — каждый вызов даёт новый файл. В ответе `url` с "
+        "токеном на минуту, его можно открыть в новой вкладке сразу; `path` — "
+        "чтобы позже выдать ссылку заново через `POST /files/link`.\n\n"
+        "Пустые поля печатаются прочерком, не ошибкой. Видимость та же, что у "
+        "карточки объекта: чужой объект — 403, несуществующий — 404."
+    ),
+    tags=["Админ панель / Объекты"],
+)
+def generate_appointment_order_pdf(
+    request: Request,
+    draft: AppointmentOrderDraft,
+    session=Depends(deps.get_db),
+    object_id: int = Path(..., title="ID object"),
+    current_user=Depends(deps.require(Permission.OBJECT_READ)),
+    scope=Depends(deps.get_read_scope),
+):
+    # Объект нужен только ради проверки видимости: реквизиты уже в теле.
+    _obj, code, _indexes = crud_objects.get_object_by_id(
+        db=session, object_id=object_id, scope=scope
+    )
+    get_raise(code=code)
+
+    # Путь той же формы, что у `adding_file`: по первым двум сегментам
+    # `/files/link` узнаёт владельца и проверяет доступ по объекту.
+    folder = os.path.join(
+        "./static/", PATH_MODEL, str(object_id), PATH_TYPE_APPOINTMENT_ORDER
+    )
+    os.makedirs(folder, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.pdf"
+    build_appointment_order_pdf(os.path.join(folder, filename), draft)
+
+    rel_path = "/".join(
+        [PATH_MODEL, str(object_id), PATH_TYPE_APPOINTMENT_ORDER, filename]
+    )
+    token = create_file_token(
+        user_id=current_user.id, path=f"{settings.API_V1_STR}/static/{rel_path}"
+    )
+    return SingleEntityResponse(
+        data=AppointmentOrderPdfGet(
+            path=rel_path,
+            url=f"{static_base_url(request)}{rel_path}?token={token}",
+            expires_in=settings.FILE_TOKEN_EXPIRE_SECONDS,
+        )
+    )
 
 
 # CREATE NEW OBJECT
