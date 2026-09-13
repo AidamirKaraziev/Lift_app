@@ -371,6 +371,12 @@
       "object_id"
     ]
   },
+  "GET /api/v1/object/{object_id}/appointment-order/draft": {
+    "required_body": [],
+    "required_params": [
+      "object_id"
+    ]
+  },
   "GET /api/v1/object/{object_id}/archive/": {
     "required_body": [],
     "required_params": [

@@ -11,7 +11,9 @@ from src.crud.crud_company import crud_company
 from src.crud.crud_object import crud_objects
 from src.crud.users.crud_client import crud_client
 from src.crud.users.crud_universal_user import crud_universal_users
+from src.getters.appointment_order import get_appointment_order_draft
 from src.getters.object import get_object
+from src.schemas.appointment_order import AppointmentOrderDraft
 from src.schemas.object import ObjectCreate, ObjectGet, ObjectUpdate
 from src.templates_raise import get_raise
 
@@ -195,6 +197,37 @@ def get_data(
     )
     get_raise(code=code)
     return SingleEntityResponse(data=get_object(obj, request))
+
+
+@router.get(
+    path="/object/{object_id}/appointment-order/draft",
+    response_model=SingleEntityResponse[AppointmentOrderDraft],
+    name="appointment_order_draft",
+    summary="Черновик приказа о назначении",
+    description=(
+        "📄 Приказ о назначении ответственных за объект — то, что уже лежит в "
+        "карточке: адрес, организация и её директор как подписант, "
+        "закреплённые прораб и электромеханик, оборудование.\n\n"
+        "Ничего не хранится и не генерируется: номер и город всегда пусты, "
+        "дата — сегодня; человек правит реквизиты в диалоге и отдаёт их в "
+        "сборку PDF. Нет прораба, механика или директора — поле `null`, а не "
+        "ошибка.\n\n"
+        "Видимость та же, что у карточки объекта: чужой объект — 403, "
+        "несуществующий — 404."
+    ),
+    tags=["Админ панель / Объекты"],
+)
+def get_appointment_order_draft_data(
+    session=Depends(deps.get_db),
+    object_id: int = Path(..., title="ID object"),
+    current_user=Depends(deps.require(Permission.OBJECT_READ)),
+    scope=Depends(deps.get_read_scope),
+):
+    obj, code, indexes = crud_objects.get_object_by_id(
+        db=session, object_id=object_id, scope=scope
+    )
+    get_raise(code=code)
+    return SingleEntityResponse(data=get_appointment_order_draft(obj))
 
 
 # CREATE NEW OBJECT
