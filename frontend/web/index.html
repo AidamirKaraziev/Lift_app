@@ -14,8 +14,9 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-<!--build  <base href="/">-->
-<!--  <base href="$FLUTTER_BASE_HREF">-->
+  <!-- Адреса разделов без «#» (`/objects`) требуют базового пути: без него
+       Flutter отказывается стартовать. Приложение живёт в корне домена. -->
+  <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">

@@ -4,6 +4,7 @@ import 'package:els/helper/api_client.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../helper/api_config.dart';
+import '../models/defect_row.dart';
 import '../models/object_works.dart';
 import '../models/works_report.dart';
 
@@ -65,14 +66,15 @@ class ReportFilters {
     );
   }
 
-  static String _date(DateTime value) =>
+  /// Дата в виде `ГГГГ-ММ-ДД` — так её ждут ручки отчёта.
+  static String dateLabel(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'
       '${value.day.toString().padLeft(2, '0')}';
 
   Map<String, String> toQuery() => <String, String>{
-        'date_from': _date(dateFrom),
-        'date_to': _date(dateTo),
+        'date_from': dateLabel(dateFrom),
+        'date_to': dateLabel(dateTo),
         if (divisionId != null) 'division_id': '$divisionId',
         if (organizationId != null) 'organization_id': '$organizationId',
         if (companyId != null) 'company_id': '$companyId',
@@ -121,6 +123,28 @@ class WorksReportRepository {
     return ObjectWorksReport.fromJson(_decode(response));
   }
 
+  /// Дефектные акты всего отбора за период — список с плитки сводки.
+  ///
+  /// Отбор тот же, что у сводки, и сервер считает список тем же запросом,
+  /// что и число на плитке, — поэтому число и длина списка совпадают.
+  /// Без страниц: актов за период десятки, а не тысячи, и листать их
+  /// в шторке было бы неудобнее, чем прокрутить.
+  Future<List<ReportDefectRow>> fetchDefects({
+    required ReportFilters filters,
+  }) async {
+    final Uri uri = Uri.parse('${ApiConfig.base}/reports/works/defects')
+        .replace(queryParameters: filters.toQuery());
+
+    final http.Response response = await _get(uri);
+    final Map<String, dynamic> data = _decode(response);
+    final List<dynamic> items =
+        data['items'] is List ? data['items'] as List<dynamic> : <dynamic>[];
+    return items
+        .whereType<Map>()
+        .map((Map raw) => ReportDefectRow.fromJson(raw.cast<String, dynamic>()))
+        .toList();
+  }
+
   /// Адрес выгрузки, который можно открыть в новой вкладке.
   ///
   /// Прямо к ручке выгрузки обратиться нельзя: ей нужен заголовок
@@ -131,6 +155,7 @@ class WorksReportRepository {
     required ReportFilters filters,
     required String format,
     bool withPhotos = false,
+    List<int>? objectIds,
   }) async {
     final Uri uri = Uri.parse('${ApiConfig.base}/files/export-link');
 
@@ -144,10 +169,13 @@ class WorksReportRepository {
         },
         body: jsonEncode(<String, dynamic>{
           'export': 'works',
-          'params': <String, String>{
+          'params': <String, dynamic>{
             ...filters.toQuery(),
             'format': format,
             if (withPhotos) 'with_photos': 'true',
+            // Список сервер разворачивает в `object_ids=1&object_ids=2`.
+            if (objectIds != null)
+              'object_ids': objectIds.map((int id) => '$id').toList(),
           },
         }),
       ).timeout(timeout);
@@ -161,15 +189,8 @@ class WorksReportRepository {
       throw const WorksReportException('Сервер не вернул ссылку на файл');
     }
 
-    // Бэкенд отдаёт адрес **без схемы** — `els23.ru/api/v1/…`, ровно как
-    // ссылки на фото и сканы. Схему дописывает клиент: на вебе берётся схема
-    // открытой страницы, см. `ApiConfig.scheme` и `helper/api_image.dart`.
-    //
-    // Без этого браузер считает адрес относительным и приклеивает его к
-    // текущему пути: получается `https://els23.ru/els23.ru/api/v1/…`, и
-    // скачивание молча не работает.
-    if (url.contains('://')) return url;
-    return '${ApiConfig.scheme}://$url';
+    // Адрес приходит без схемы, см. `ApiConfig.withScheme`.
+    return ApiConfig.withScheme(url);
   }
 
   Future<http.Response> _get(Uri uri) async {

@@ -41,6 +41,7 @@ from src.api.api_v1.endpoints import (
     type_contract,
     type_object,
     universal_user,
+    work_feed,
     working_specialty,
 )
 
@@ -86,6 +87,7 @@ api_router.include_router(order_photo.router)
 api_router.include_router(order.router)
 api_router.include_router(statistics.router)
 api_router.include_router(submitted_works.router)
+api_router.include_router(work_feed.router)
 api_router.include_router(in_progress_works.router)
 api_router.include_router(reports.router)
 api_router.include_router(schedules.router)

@@ -132,7 +132,7 @@ class SubmittedWork {
   factory SubmittedWork.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> object = _asMap(json['object']);
     return SubmittedWork(
-      kind: _kindFromJson(json['kind']),
+      kind: workKindFromJson(json['kind']),
       workId: _asInt(json['work_id']) ?? 0,
       outcome: _outcomeFromJson(json['outcome']),
       objectId: _asInt(object['id']),
@@ -205,7 +205,9 @@ class SubmittedWorksPage {
   }
 }
 
-WorkKind _kindFromJson(dynamic value) {
+/// Вид работы из ответа ручки: `kind` строкой, как в `WorkKind` на бэке.
+/// Общий для лент сданных, идущих и единой ленты «Работы».
+WorkKind workKindFromJson(dynamic value) {
   switch (_asString(value)) {
     case 'maintenance':
       return WorkKind.maintenance;

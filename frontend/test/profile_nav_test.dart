@@ -30,12 +30,14 @@ void main() {
     expect(IntTest.indexScreensForeman, 2);
   });
 
-  test('админ попадает в профиль, а не в «Охрану труда»', () {
+  test('админ попадает в профиль, а не в карточку компании', () {
     idUserTest = Roles.admin;
     IntTest.indexScreens = 4;
 
     openProfile();
-    expect(IntTest.indexScreens, 9);
+    // 8, а не 9: «Охрана труда» из списка админа выключена, и с восьмого
+    // элемента фактические номера на единицу меньше комментариев подрядчика.
+    expect(IntTest.indexScreens, 8);
 
     leaveProfile();
     expect(IntTest.indexScreens, 4);

@@ -493,6 +493,13 @@
       "date_to"
     ]
   },
+  "GET /api/v1/reports/works/defects": {
+    "required_body": [],
+    "required_params": [
+      "date_from",
+      "date_to"
+    ]
+  },
   "GET /api/v1/reports/works/export": {
     "required_body": [],
     "required_params": [
@@ -587,6 +594,10 @@
     "required_params": [
       "role_id"
     ]
+  },
+  "GET /api/v1/work/feed": {
+    "required_body": [],
+    "required_params": []
   },
   "GET /api/v1/work/in-progress": {
     "required_body": [],
@@ -881,6 +892,22 @@
       "name"
     ],
     "required_params": []
+  },
+  "POST /api/v1/work/{kind}/{work_id}/assign/": {
+    "required_body": [
+      "performer_id"
+    ],
+    "required_params": [
+      "kind",
+      "work_id"
+    ]
+  },
+  "POST /api/v1/work/{kind}/{work_id}/review/": {
+    "required_body": [],
+    "required_params": [
+      "kind",
+      "work_id"
+    ]
   },
   "POST /api/v1/work/{kind}/{work_id}/reviewed/": {
     "required_body": [],

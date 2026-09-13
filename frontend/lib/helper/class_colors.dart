@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 ///Цвета приложения
 
 class ColorApp {
@@ -22,6 +21,9 @@ class ColorApp {
   /// Бледная янтарная заливка под тем же `myColorYellow` в рамке. Нужна там,
   /// где помечают недоделку, а не отказ: на сплошном #F0BB01 текст не читается.
   static const Color myColorYellowLight = Color(0xffFFF5E6);
+  // Пауза в ленте работ: свой цвет, чтобы не путаться ни с «в работе», ни
+  // с жёлтой «проблемой».
+  static const Color myColorOrange = Color(0xffE8912D);
   static const Color myColorBlue = Color(0xff8BAEF9);
 
   ///Мой Падинг

@@ -22,6 +22,7 @@ from src.crud.crud_statistics import _PLANNED_MONTH_COLUMN, previous_month
 from src.models import (
     ActFact,
     Company,
+    DefectiveAct,
     Object,
     Organization,
     PlannedTO,
@@ -278,6 +279,127 @@ class TestMatrix:
         assert len(data["items"]) == 2
         assert data["total_objects"] == 3
         assert data["summary"]["objects_total"] == 3
+
+
+class TestSelectedObjects:
+    """`object_ids` — лифты, отмеченные галочками: файл только по ним."""
+
+    def _three(self, db_session, make_object):
+        organization = Organization(title=f"Орг {uuid.uuid4().hex[:6]}")
+        db_session.add(organization)
+        db_session.flush()
+        return organization, [
+            make_object(organization_id=organization.id) for _ in range(3)
+        ]
+
+    @pytest.mark.integration
+    def test_screen_narrows_to_selected(
+        self, client_with_db, as_role, db_session, make_object
+    ):
+        as_role(ADMIN)
+        organization, objects = self._three(db_session, make_object)
+        chosen = [objects[0].id, objects[2].id]
+
+        data = _data(
+            client_with_db.get(
+                URL,
+                params=_params(organization_id=organization.id, object_ids=chosen),
+            )
+        )
+
+        assert sorted(item["object_id"] for item in data["items"]) == sorted(chosen)
+        assert data["total_objects"] == 2
+        assert data["summary"]["objects_total"] == 2
+
+    @pytest.mark.integration
+    def test_excel_takes_only_selected(
+        self, client_with_db, as_role, db_session, make_object, plan_to
+    ):
+        as_role(ADMIN)
+        organization, objects = self._three(db_session, make_object)
+        for obj in objects:
+            plan_to(obj, months={3: datetime.datetime(this_year(), 3, 20)})
+        chosen = [objects[0].id, objects[1].id]
+
+        book = load_workbook(
+            BytesIO(
+                client_with_db.get(
+                    EXPORT_URL,
+                    params=_params(
+                        organization_id=organization.id, object_ids=chosen
+                    ),
+                ).content
+            )
+        )
+
+        assert book["ТО"].max_row == 3  # шапка плюс два ТО, третий лифт не выбран
+
+    @pytest.mark.integration
+    def test_pdf_by_two_selected(
+        self, client_with_db, as_role, db_session, make_object, plan_to
+    ):
+        as_role(ADMIN)
+        organization, objects = self._three(db_session, make_object)
+        for obj in objects:
+            plan_to(obj, months={3: datetime.datetime(this_year(), 3, 20)})
+        chosen = [objects[0].id, objects[1].id]
+
+        response = client_with_db.get(
+            EXPORT_URL,
+            params=_params(
+                format="pdf", organization_id=organization.id, object_ids=chosen
+            ),
+        )
+        screen = _data(
+            client_with_db.get(
+                URL,
+                params=_params(organization_id=organization.id, object_ids=chosen),
+            )
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.content[:5] == b"%PDF-"
+        # Файл считает тот же отбор, что и экран: два лифта, два ТО.
+        assert screen["summary"]["objects_total"] == 2
+        assert screen["summary"]["maintenance_planned"] == 2
+
+    @pytest.mark.integration
+    def test_defects_list_takes_selected(
+        self, client_with_db, as_role, db_session, make_object
+    ):
+        as_role(ADMIN)
+        organization, objects = self._three(db_session, make_object)
+
+        data = _data(
+            client_with_db.get(
+                DEFECTS_URL,
+                params=_params(
+                    organization_id=organization.id, object_ids=[objects[0].id]
+                ),
+            )
+        )
+
+        assert data["items"] == []
+
+    @pytest.mark.integration
+    def test_old_object_id_still_works_alongside(
+        self, client_with_db, as_role, db_session, make_object
+    ):
+        # Старый параметр не сломан: с `object_ids` он просто пересекается.
+        as_role(ADMIN)
+        _organization, objects = self._three(db_session, make_object)
+
+        data = _data(
+            client_with_db.get(
+                URL,
+                params=_params(
+                    object_id=objects[0].id,
+                    object_ids=[objects[0].id, objects[1].id],
+                ),
+            )
+        )
+
+        assert [item["object_id"] for item in data["items"]] == [objects[0].id]
 
 
 class TestObjectWorks:
@@ -641,3 +763,188 @@ class TestPdfExport:
         assert response.status_code == 200
         # Имя чужого лифта не должно попасть в документ ни в каком виде.
         assert "Чужой лифт".encode() not in response.content
+
+
+DEFECTS_URL = f"{settings.API_V1_STR}/reports/works/defects"
+
+
+@pytest.fixture
+def make_defect(db_session):
+    """Дефектный акт с нужной датой создания. Плановое ТО не заполняется:
+    три входа из четырёх его и не знают."""
+
+    def _make(obj, *, created_at, kind="internal", parent=None):
+        act = DefectiveAct(
+            object_id=obj.id,
+            title=f"Дефект {uuid.uuid4().hex[:6]}",
+            kind=kind,
+            parent_id=parent.id if parent else None,
+            created_at=created_at,
+        )
+        db_session.add(act)
+        db_session.flush()
+        return act
+
+    return _make
+
+
+class TestDefectsList:
+    """Список актов с плитки сводки считается тем же запросом, что и сама
+    плитка, и по тем же правилам, что лента актов объекта в окне графика:
+    дата создания и только внутренние акты."""
+
+    @pytest.mark.integration
+    def test_act_without_planned_to_is_counted(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        # Акт с пункта меню или по заявке планового ТО не знает — раньше
+        # отчёт такие терял.
+        as_role(ADMIN)
+        obj = make_object()
+        act = make_defect(obj, created_at=datetime.datetime(this_year(), 3, 5))
+
+        rows = _data(
+            client_with_db.get(DEFECTS_URL, params=_params(object_id=obj.id))
+        )
+        report = _data(client_with_db.get(URL, params=_params(object_id=obj.id)))
+
+        assert rows["total"] == 1
+        assert [row["defect_id"] for row in rows["items"]] == [act.id]
+        assert rows["items"][0]["object_id"] == obj.id
+        assert rows["items"][0]["month"] == 3
+        assert report["summary"]["counts"]["defects"] == 1
+
+    @pytest.mark.integration
+    def test_client_act_is_not_counted(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        as_role(ADMIN)
+        obj = make_object()
+        when = datetime.datetime(this_year(), 4, 1)
+        internal = make_defect(obj, created_at=when)
+        make_defect(obj, created_at=when, kind="client", parent=internal)
+
+        rows = _data(
+            client_with_db.get(DEFECTS_URL, params=_params(object_id=obj.id))
+        )
+
+        assert [row["defect_id"] for row in rows["items"]] == [internal.id]
+
+    @pytest.mark.integration
+    def test_list_matches_summary_and_object_feed(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        # Три места показывают одно число: плитка сводки, список под ней и
+        # лента актов в шторке объекта.
+        as_role(ADMIN)
+        obj = make_object()
+        for month in (1, 2, 2):
+            make_defect(obj, created_at=datetime.datetime(this_year(), month, 10))
+
+        params = _params(object_id=obj.id)
+        rows = _data(client_with_db.get(DEFECTS_URL, params=params))
+        report = _data(client_with_db.get(URL, params=params))
+        works = _data(
+            client_with_db.get(
+                f"{settings.API_V1_STR}/reports/object/{obj.id}/works",
+                params=params,
+            )
+        )
+
+        assert rows["total"] == len(rows["items"]) == 3
+        assert report["summary"]["counts"]["defects"] == 3
+        assert report["items"][0]["counts"]["defects"] == 3
+        assert len(works["defects"]) == 3
+        assert works["object"]["counts"]["defects"] == 3
+
+    @pytest.mark.integration
+    def test_act_outside_period_is_left_out(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        as_role(ADMIN)
+        obj = make_object()
+        make_defect(obj, created_at=datetime.datetime(this_year() - 1, 12, 31))
+
+        rows = _data(
+            client_with_db.get(DEFECTS_URL, params=_params(object_id=obj.id))
+        )
+
+        assert rows["items"] == []
+        assert rows["total"] == 0
+
+    @pytest.mark.integration
+    def test_mechanic_does_not_see_alien_acts(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        obj = make_object()
+        make_defect(obj, created_at=datetime.datetime(this_year(), 6, 1))
+        as_role(MECHANIC)
+
+        rows = _data(client_with_db.get(DEFECTS_URL, params=_params()))
+
+        assert rows["items"] == []
+
+
+class TestPdfDefectsSection:
+    """Сводный раздел актов в PDF: один список по всему отбору, в
+    дополнение к перечню внутри объекта."""
+
+    @pytest.mark.integration
+    def test_pdf_builds_with_defects(
+        self, client_with_db, as_role, make_object, make_defect
+    ):
+        as_role(ADMIN)
+        obj = make_object()
+        make_defect(obj, created_at=datetime.datetime(this_year(), 2, 3))
+        make_defect(obj, created_at=datetime.datetime(this_year(), 5, 9))
+
+        for with_photos in (False, True):
+            response = client_with_db.get(
+                EXPORT_URL,
+                params=_params(
+                    format="pdf", object_id=obj.id, with_photos=with_photos
+                ),
+            )
+            assert response.status_code == 200, response.text
+            assert response.content[:5] == b"%PDF-"
+
+    def test_section_rows_match_input(self):
+        # Текст из PDF не достать: шрифт вшит субсетом. Поэтому число строк
+        # проверяется на самой таблице, до сборки документа.
+        from types import SimpleNamespace
+
+        from reportlab.platypus import Table
+
+        from src.services.reports_pdf import _defects_section, _ensure_font, _styles
+
+        styles = _styles(_ensure_font())
+        rows = [
+            SimpleNamespace(
+                object_name="Лифт 1",
+                address="ул. Ленина, 1",
+                title="Трос",
+                description="Износ",
+                created_at=datetime.datetime(this_year(), 2, 3),
+                status="Открыт",
+                responsible="Иванов",
+                photo_count=2,
+            ),
+            SimpleNamespace(
+                object_name="Лифт 2",
+                address=None,
+                title="Дверь",
+                description=None,
+                created_at=datetime.datetime(this_year(), 5, 9),
+                status=None,
+                responsible=None,
+                photo_count=0,
+            ),
+        ]
+
+        story = _defects_section(rows, styles, 700)
+
+        tables = [item for item in story if isinstance(item, Table)]
+        assert len(tables) == 1
+        # Шапка и по строке на акт.
+        assert len(tables[0]._cellvalues) == 3
+        assert _defects_section([], styles, 700) == []

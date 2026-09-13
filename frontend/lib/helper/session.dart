@@ -17,13 +17,12 @@ import '../bloc/user_bloc/user_bloc.dart';
 import '../dispatcher/home_dispatcher.dart';
 import '../foreman/home_foreman.dart';
 import '../mechanic/mechanic_shell.dart';
+import '../navigation/app_router.dart';
 import '../owner/home_owner.dart';
-import '../screns/auth/auth.dart';
 import '../screns/auth/role_stub_screen.dart';
 import '../screns/employee/bloc/employee_bloc.dart';
 import '../screns/home_page/home_page.dart';
 import '../screns/object/bloc/object_bloc.dart';
-import '../screns/task/bloc_task/task_bloc.dart';
 import '../screns/user/user_contact.dart';
 import 'api_client.dart';
 import 'api_config.dart';
@@ -143,7 +142,6 @@ void primeData(BuildContext context) {
 
   context.read<UserBloc>().add(UserGetEvent());
   context.read<MyObjectBloc>().add(ObjectGetEvent());
-  context.read<TaskBloc>().add(TaskGetEvent());
 
   // Клиенту сотрудники и контрагенты закрыты правами — спрашивать их значит
   // гарантированно получить `403` на старте каждого его сеанса.
@@ -192,15 +190,9 @@ Future<void> signOut() async {
 void goToLogin() {
   if (_atLogin) return;
 
-  final NavigatorState? navigator = appNavigatorKey.currentState;
-  if (navigator == null) return;
-
   _atLogin = true;
   resetSession();
-  navigator.pushAndRemoveUntil(
-    MaterialPageRoute<void>(builder: (_) => const Auth()),
-    (Route<dynamic> route) => false,
-  );
+  appRouter.signedOut();
 }
 
 /// Вход состоялся — снимаем флаг, иначе следующий `401` не сработает.
@@ -227,7 +219,7 @@ void markSignedIn() {
 /// здесь нет, профиль не показывается: у механика своя оболочка со своей
 /// вкладкой, у владельца экрана нет.
 const Map<int, int> _profileIndex = <int, int>{
-  Roles.admin: 9,
+  Roles.admin: 8,
   Roles.foreman: 24,
   Roles.dispatcher: 4,
 };

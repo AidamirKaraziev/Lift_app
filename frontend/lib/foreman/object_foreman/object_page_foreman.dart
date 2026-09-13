@@ -1,4 +1,5 @@
 import 'package:els/foreman/object_foreman/widgets_object_foreman/editing_object_foreman.dart';
+import 'package:els/screns/object/appointment_order/widgets/appointment_order_button.dart';
 import 'package:gap/gap.dart';
 import 'package:flutter/material.dart';
 import '../../../../helper/class_colors.dart';
@@ -792,6 +793,11 @@ class _ObjectPageForemanState extends State<ObjectPageForeman> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
+                                      /// Приказ о назначении — E04
+                                      AppointmentOrderButton(
+                                        object: Map<String, dynamic>.from(viewObjectPage),
+                                      ),
+
                                       /// Письмо о назначении
                                       Row(
                                         children: [

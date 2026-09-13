@@ -5,7 +5,6 @@ import '../../../helper/button/my_button.dart';
 import 'package:http/http.dart' as http;
 import '../../../helper/class_colors.dart';
 import '../../screns/home_page/home_page.dart';
-import '../../screns/task/view/task_screen.dart';
 import '../../screns/user/user_contact.dart';
 import '../task_screen_dispatcher/application_screen.dart';
 import 'package:els/helper/api_client.dart';
@@ -153,7 +152,6 @@ class _AddApplicationState extends State<AddApplication> {
     getListObjectApplication();
     getListMechanicApplication();
     faultCategoryApplication();
-    dataListTask = getTask; /// проверить
     // TODO: implement initState
     super.initState();
   }

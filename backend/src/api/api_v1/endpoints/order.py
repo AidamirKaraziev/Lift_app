@@ -81,7 +81,11 @@ def get_top_breakdowns_statistics(
     "/order/all",
     response_model=ListOfEntityResponse,
     name="get_orders",
+    deprecated=True,
+    summary="Список задач (устарел)",
     description=(
+        "**Устарел, используйте `GET /work/feed`.** Ручка живёт ради клиентов, "
+        "которые уже на неё ходят, и не меняется.\n\n"
         "Получение списка всех задач.\n\n"
         "Все фильтры необязательные: без них ручка работает как раньше.\n\n"
         "`year` и `month` задаются только вместе — период считается по дате "

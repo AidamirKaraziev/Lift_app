@@ -1,32 +1,28 @@
+import 'dart:async';
 import 'package:els/screns/schedule/bloc/schedules_bloc.dart';
 import 'package:els/foreman/companies_foreman/companies_screen_foreman.dart';
-import 'package:els/foreman/task_foreman/task_completed_foreman/task_page_completed_foreman.dart';
-import 'package:els/foreman/task_foreman/task_completed_foreman/task_screen_completed_foreman.dart';
-import 'package:els/foreman/task_foreman/task_page_foreman.dart';
-import 'package:els/foreman/task_foreman/task_screen_foreman.dart';
 import 'package:els/foreman/user_page_foreman.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/user_bloc/user_bloc.dart';
 import '../helper/class_colors.dart';
+import '../navigation/app_router.dart';
+import '../navigation/app_section.dart';
+import '../navigation/section_index.dart';
+import '../navigation/shell_drawer.dart';
+import '../screns/home/home_screen.dart';
 import '../screns/companies/view/company_page.dart';
 import '../screns/employee/view/employee_page.dart';
 import '../screns/home_page/home_page.dart';
-import '../screns/in_progress_works/in_progress_counts.dart';
-import '../screns/in_progress_works/models/in_progress_work.dart';
-import '../screns/in_progress_works/repository/in_progress_works_repository.dart';
 import '../screns/report/report_screen.dart';
 import '../screns/schedule/view/schedule_section.dart';
 import '../screns/schedule/view/route_schedule_object_opener.dart';
 import '../screns/schedule/view/schedules_screen.dart';
 import '../screns/submitted_works/repository/submitted_works_repository.dart';
-import '../screns/submitted_works/view/submitted_works_screen.dart';
-import '../screns/task/view/task_page.dart';
+import '../screns/works/repository/api_works_repository.dart';
+import '../screns/works/view/works_screen.dart';
 import '../screns/user/user_page.dart';
 import 'companies_foreman/companies_arhive_foreman/companies_screen_archive_foreman.dart';
 import 'companies_foreman/companies_arhive_foreman/company_page_archive_foreman.dart';
 import 'companies_foreman/company_page_foreman.dart';
-import 'drawer_foreman.dart';
 import 'employee_foreman/employee_arhive_foreman/employee_archive_page_foreman.dart';
 import 'employee_foreman/employee_arhive_foreman/employees_archive_screen_foreman.dart';
 import 'employee_foreman/employee_page_foreman.dart';
@@ -36,7 +32,11 @@ import 'object_foreman/arhive_object_foreman/object_screen_archive_foreman.dart'
 import 'object_foreman/object_screen_foreman.dart';
 import 'object_foreman/object_page_foreman.dart';
 
-/// Домашняя Прораб
+/// Домашняя Прораб — оболочка прораба.
+///
+/// Раздел выбирается маршрутом ([appRouter]), экран внутри раздела — по
+/// индексу подрядчика (`IntTest.indexScreensForeman` + `myStream`), пока
+/// детальные экраны не переведены (S08). Таблица — [SectionIndex.foreman].
 
 class HomeForeman extends StatefulWidget {
   const HomeForeman({Key? key}) : super(key: key);
@@ -46,6 +46,54 @@ class HomeForeman extends StatefulWidget {
 }
 
 class _HomeForemanState extends State<HomeForeman> {
+  static const SectionIndex _index = SectionIndex.foreman;
+
+  StreamSubscription<dynamic>? _screens$;
+  int _handledTap = appRouter.tapSerial;
+
+  /// Маршрут сменился. Тап по бургеру всегда ведёт к корневому экрану
+  /// раздела; адрес из браузера — только если раздел другой (см. `HomePage`).
+  void _onRoute() {
+    if (!mounted) return;
+    final AppSection section = appRouter.section;
+    final bool tapped = appRouter.tapSerial != _handledTap;
+    _handledTap = appRouter.tapSerial;
+    if (!tapped && _index.sectionOf(IntTest.indexScreensForeman) == section) {
+      return;
+    }
+    _enter(section);
+  }
+
+  /// Открыть раздел с корневого экрана — то, что делали пункты `DrawerForeman`.
+  void _enter(AppSection section) {
+    switch (section) {
+      case AppSection.objects:
+        getListObjectForeman();
+        break;
+      case AppSection.works:
+        // Число могло устареть, пока прораб сидел в другом разделе: механик
+        // закрывает заявки не спрашивая.
+        const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
+        break;
+      case AppSection.companies:
+        getListCompanyForeman();
+        break;
+      case AppSection.employees:
+        getListEmployeeForeman();
+        break;
+      default:
+        break;
+    }
+    _show(_index.rootOf(section), title: section.title);
+  }
+
+  /// Показать экран по индексу — тем же путём, каким ходят экраны подрядчика.
+  void _show(int index, {String? title}) {
+    if (title != null) IntTest.myTitle = title;
+    IntTest.indexScreensForeman = index;
+    myStream.add(index);
+  }
+
   /// Блок ленты «Графиков». Живёт у оболочки по той же причине, что и у
   /// админа (`home_page.dart`): разделы стоят в дереве одной позицией, и уход
   /// в «Заявки» уносит раздел вместе с его блоком. Прораб, вернувшийся в
@@ -54,6 +102,8 @@ class _HomeForemanState extends State<HomeForeman> {
 
   @override
   void dispose() {
+    _screens$?.cancel();
+    appRouter.removeListener(_onRoute);
     _scheduleBloc?.close();
     super.dispose();
   }
@@ -69,7 +119,6 @@ class _HomeForemanState extends State<HomeForeman> {
       // Клик в строку открывает тот же экран «График объекта», что и у
       // админа, — маршрутом поверх оболочки, но глазами прораба.
       opener: const RouteScheduleObjectOpener.foreman(),
-      drawer: const DrawerForeman(),
     );
   }
 
@@ -82,20 +131,20 @@ class _HomeForemanState extends State<HomeForeman> {
     ///Графики 1 — заглушка: раздел строится в `_scheduleSection`.
     const SizedBox.shrink(),
 
-    ///Заявки 2
-    const TaskScreenForeman(),
+    ///Работы 2 — единая лента заявок и актов
+    WorksScreen(repository: ApiWorksRepository(), drawer: const ShellDrawer()),
 
     ///Компании 3
     const CompaniesScreenForeman(),
 
     ///Отчеты 4
-    const ReportScreen(drawer: DrawerForeman()),
+    const ReportScreen(),
 
     ///Сотрудники 5
     const EmployeesScreenForeman(),
 
     ///Окно Юзера 6
-    const MyProfile(drawer: DrawerForeman()),
+    const MyProfile(),
 
     ///Окно выбранной Компании 7
     const CompanyPage(),
@@ -109,8 +158,8 @@ class _HomeForemanState extends State<HomeForeman> {
     ///  10 — экран графика подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
 
-    /// Окно выбранной задачи 11
-    const TaskPage(),
+    /// Окно выбранной задачи 11 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     /// Окно архив объекты 12
     const ObjectScreenArchiveForeman(),
@@ -121,14 +170,14 @@ class _HomeForemanState extends State<HomeForeman> {
     /// Окно выбранного графика 14 — экран подрядчика снят, слот держит нумерацию
     const SizedBox.shrink(),
 
-    /// Окно выбранной задачи 15
-    const TaskPageForeman(),
+    /// Окно выбранной задачи 15 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
-    /// Окно выполненых задачи 16
-    const TaskScreenCompletedForeman(),
+    /// Окно выполненых задачи 16 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
-    /// Окно выбранной выполненой задачи 17
-    const TaskPageCompletedForeman(),
+    /// Окно выбранной выполненой задачи 17 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
 
     /// Окно выбранной компании 18
     const CompanyPageForeman(),
@@ -151,87 +200,50 @@ class _HomeForemanState extends State<HomeForeman> {
     /// Окно User 24
     const OpenViewUserForeman(),
 
-    /// Лента сданных работ 25
-    const SubmittedWorksScreen(drawer: DrawerForeman()),
+    /// Лента сданных работ 25 — экран снят, слот держит нумерацию
+    const SizedBox.shrink(),
+
+    /// Главная 26 — до S06 админский экран как есть: у прораба своей нет
+    const HomeScreen(),
   ];
 
   @override
   void initState() {
+    super.initState();
+    _screens$ = myStream.stream.listen((_) {
+      if (!mounted) return;
+      final AppSection? owner = _index.sectionOf(IntTest.indexScreensForeman);
+      if (owner != null) appRouter.showSection(owner);
+      setState(() {});
+    });
+    appRouter.addListener(_onRoute);
+    _enter(appRouter.section);
+
     getListObjectForeman();
     // Список объектов для графиков больше не тянем: новый раздел «Графики»
     // грузит себя сам, а этот вызов кормил только экран подрядчика.
-    getListTaskForeman();
     getListCompanyForeman();
     getListEmployeeForeman();
-    // Счётчики нужны кнопке меню, а не экрану: числа видны с любого раздела,
-    // поэтому и тянем их один раз при входе в оболочку. Ошибку глотаем молча
-    // — из-за неё нельзя не пустить прораба в систему.
+    // Таблетка у «Работ» видна с любого раздела — число берём при входе, не
+    // дожидаясь, пока прораб откроет ленту. Ошибку глотаем: из-за неё нельзя
+    // не пустить в систему.
     const SubmittedWorksRepository().unreviewedCount().catchError((_) => 0);
-    _loadInProgressCounts();
-    // TODO: implement initState
-    super.initState();
-  }
-
-  /// Сколько работ идёт прямо сейчас — для таблеток в боковом меню.
-  ///
-  /// Раньше эти числа появлялись только после захода в «Сданные работы»:
-  /// класть их умел лишь блок раздела. Прораб открывал бургер и видел одну
-  /// серую таблетку, хотя работы шли.
-  ///
-  /// Пишем только в пустое значение: если прораб успел открыть раздел раньше,
-  /// чем вернулся этот запрос, свежие числа из блока затирать нечем.
-  Future<void> _loadInProgressCounts() async {
-    try {
-      final InProgressWorks works =
-          await const InProgressWorksRepository().fetch();
-      if (inProgressCounts.value != InProgressCounts.none) return;
-      inProgressCounts.value =
-          InProgressCounts(total: works.total, problems: works.problems);
-    } catch (_) {
-      // Пустое меню без чисел лучше, чем не пустить прораба в систему.
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
-    return BlocBuilder<UserBloc, UserState>(
-      builder: (context, state) {
-        return Scaffold(
-          body: Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    ///Боковое меню
-                    if (size.width > 1350)
-                       const Expanded(
-                        flex: 2,
-                        child: DrawerForeman(),
-                      ),
-                    /// Body
-                    Expanded(
-                      flex: 8,
-                      child: Column(
-                        children: [
-                          /// Body
-                          StreamBuilder(
-                            stream: myStream.stream,
-                            builder: (context, ind) => Expanded(
-                              flex: 9,
-                              child: _screenAt(IntTest.indexScreensForeman),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Scaffold(
+      body: Row(
+        children: <Widget>[
+          ///Боковое меню
+          if (size.width > 1350)
+            const Expanded(flex: 2, child: ShellDrawer()),
+
+          /// Body
+          Expanded(flex: 8, child: _screenAt(IntTest.indexScreensForeman)),
+        ],
+      ),
     );
   }
 }

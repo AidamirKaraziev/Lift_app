@@ -1,7 +1,6 @@
 import 'package:els/dispatcher/task_screen_dispatcher/application_screen.dart';
 import 'package:flutter/material.dart';
 
-import '../foreman/task_foreman/task_screen_foreman.dart';
 import '../helper/button/side_menu_button.dart';
 import '../helper/class_colors.dart';
 import '../helper/session.dart';
@@ -100,7 +99,6 @@ class _DrawerDispatcherState extends State<DrawerDispatcher> {
                 myIcons: Icons.person_outline,
                 title: 'Мой профиль',
                 press: () async {
-                  getListTaskForeman();
                   IntTest.indexScreensDispatcher = 4;
                   IntTest.myTitle = 'Мой профиль';
                   setState(() {});

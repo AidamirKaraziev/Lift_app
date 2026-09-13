@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from src.api import deps
 from src.core.permissions import Permission, permissions_for
 from src.core.response import SingleEntityResponse
-from src.core.roles import ADMIN, FIELD_ROLES, FOREMAN
+from src.core.roles import FIELD_ROLES, FOREMAN
 from src.crud.crud_statistics import crud_statistics, month_period, previous_month
 from src.getters.statistics import (
     get_breakdowns_report,
@@ -294,9 +294,9 @@ def get_overdue_maintenance_statistics(
         "Шкала — по нормативам, а не относительно лучшего: цифра сравнима "
         "между месяцами. Метрика, которую не из чего посчитать, выпадает, а "
         "её вес распределяется между остальными.\n\n"
-        "`kind=mechanic` — механики и инженеры, `kind=foreman` — прорабы, и "
-        "он доступен только админу: балл прораба наполовину состоит из "
-        "среднего балла его людей.\n\n"
+        "`kind=mechanic` — механики и инженеры, `kind=foreman` — прорабы: "
+        "балл прораба наполовину состоит из среднего балла его людей. Оба "
+        "режима открыты всем, у кого есть право на рейтинг.\n\n"
         "Сотрудник с числом работ меньше `min_works` помечается "
         "`is_provisional` и уезжает в конец списка в обоих порядках."
     ),
@@ -311,7 +311,7 @@ def get_top_employees_statistics(
         "mechanic",
         regex="^(mechanic|foreman)$",
         title="Кого ранжировать",
-        description="mechanic — механики и инженеры, foreman — прорабы (только админ).",
+        description="mechanic — механики и инженеры, foreman — прорабы.",
     ),
     order: str = Query(
         "best",
@@ -342,15 +342,6 @@ def get_top_employees_statistics(
     company_id: int = Query(None, title="Только объекты этой компании"),
     scope=Depends(deps.get_read_scope),
 ):
-    if kind == "foreman" and current_user.role_id != ADMIN:
-        # Прораб не смотрит рейтинг прорабов: половина этого балла — оценка
-        # чужих бригад, а сравнение руководителей между собой заказчик
-        # оставил за админом.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Рейтинг прорабов доступен только администратору",
-        )
-
     period = month_period(year, month)
     filters = {
         "division_id": division_id,

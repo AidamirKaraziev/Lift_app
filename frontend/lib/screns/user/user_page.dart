@@ -4,13 +4,13 @@ import 'package:els/screns/user/user_info.dart';
 import 'package:els/screns/user/user_profile.dart';
 import 'package:els/screns/user/widgets/editing_profile.dart';
 import 'package:flutter/material.dart';
+import '../../navigation/shell_drawer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/user_bloc/user_bloc.dart';
 import '../../helper/class_colors.dart';
 import '../../helper/header/header.dart';
 import '../../helper/hints/hints_switch.dart';
-import '../../helper/my_drawer/my_drawer.dart';
 import '../../helper/my_user.dart';
 import '../../helper/sign_out_button.dart';
 import '../home_page/home_page.dart';
@@ -20,7 +20,7 @@ import '../home_page/home_page.dart';
 class MyProfile extends StatefulWidget {
   const MyProfile({
     Key? key,
-    this.drawer = const MyDrawer(),
+    this.drawer = const ShellDrawer(),
   }) : super(key: key);
 
   /// Боковое меню экрана. Профиль общий для всех ролей, а меню у них разные:

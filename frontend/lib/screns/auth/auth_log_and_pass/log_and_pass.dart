@@ -1,8 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'package:els/app_download/app_download_screen.dart';
 import 'package:els/helper/api_client.dart';
 import 'package:els/helper/session.dart';
+import 'package:els/navigation/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -109,28 +109,9 @@ class _LogAndPassState extends State<LogAndPass> {
 
     setState(() => busy = false);
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => homeScreenForRole(idUserTest)),
-      (Route<dynamic> route) => false,
-    );
-
-    // Пришли по короткому адресу `els23.ru/app` — за APK, а не в кабинет.
-    // Кабинет всё равно кладём под низ: со страницы скачивания механик
-    // выходит стрелкой назад и оказывается там, где и ожидает.
-    if (openedAtDownloadPage) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (BuildContext context) => Scaffold(
-            backgroundColor: Colors.white,
-            body: SafeArea(
-              child: AppDownloadScreen(
-                onBack: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    // Стопку экранов ведёт маршрутизатор: он же откроет страницу
+    // скачивания, если пришли по короткому адресу `els23.ru/app`.
+    appRouter.signedIn();
   }
 
   @override

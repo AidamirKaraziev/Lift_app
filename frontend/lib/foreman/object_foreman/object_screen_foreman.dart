@@ -4,6 +4,7 @@ import 'package:els/foreman/object_foreman/widgets_object_foreman/add_object_for
 import 'package:els/main.dart';
 import 'package:els/screns/object/widgets/top_widget.dart';
 import 'package:flutter/material.dart';
+import '../../navigation/shell_drawer.dart';
 import '../../../helper/class_colors.dart';
 import '../../../helper/header/header.dart';
 import '../../../helper/my_map/my_map.dart';
@@ -11,7 +12,6 @@ import '../../../helper/my_user.dart';
 import 'package:http/http.dart' as http;
 import '../../screns/home_page/home_page.dart';
 import '../../screns/user/user_contact.dart';
-import '../drawer_foreman.dart';
 import '../user_page_foreman.dart';
 import 'package:els/helper/api_client.dart';
 import 'package:els/helper/api_image.dart';
@@ -99,7 +99,7 @@ class _ObjectScreenForemanState extends State<ObjectScreenForeman> {
     final Size size = MediaQuery.of(context).size;
     return Scaffold(
       key: myOpenDrawer,
-      drawer: const DrawerForeman(),
+      drawer: const ShellDrawer(),
       body: SafeArea(
         child: StreamBuilder(
             stream: myStream.stream,

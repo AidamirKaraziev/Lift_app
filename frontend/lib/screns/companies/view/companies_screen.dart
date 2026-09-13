@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:els/helper/api_config.dart';
 import 'package:els/screns/companies/widgets/top_button.dart';
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../bloc/company_bloc/company_bloc.dart';
 import '../../../helper/class_colors.dart';
 import '../../../helper/header/header.dart';
-import '../../../helper/my_drawer/my_drawer.dart';
 import '../../../helper/my_user.dart';
 import '../../home_page/home_page.dart';
 import '../widgets/add_companies.dart';
@@ -127,7 +127,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
         return Scaffold(
           key: myOpenDrawer,
-          drawer: const MyDrawer(),
+          drawer: const ShellDrawer(),
           body: Container(
             color: ColorApp.myColorTransparent,
             child: Column(

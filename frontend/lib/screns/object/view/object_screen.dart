@@ -3,9 +3,9 @@ import 'package:els/helper/api_config.dart';
 import 'package:els/main.dart';
 import 'package:els/screns/object/widgets/top_widget.dart';
 import 'package:flutter/material.dart';
+import '../../../navigation/shell_drawer.dart';
 import '../../../helper/class_colors.dart';
 import '../../../helper/header/header.dart';
-import '../../../helper/my_drawer/my_drawer.dart';
 import '../../../helper/my_map/my_map.dart';
 import '../../../helper/my_user.dart';
 import '../../home_page/home_page.dart';
@@ -166,7 +166,7 @@ class _ObjectScreenState extends State<ObjectScreen> {
     final Size size = MediaQuery.of(context).size;
     return Scaffold(
       key: myOpenDrawer,
-      drawer: const MyDrawer(),
+      drawer: const ShellDrawer(),
       body: SafeArea(
         child: StreamBuilder(
             stream: myStream.stream,

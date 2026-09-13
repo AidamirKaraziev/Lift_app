@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import '../../foreman/task_foreman/task_screen_foreman.dart';
 import '../../helper/class_colors.dart';
 import '../../screns/companies/view/companies_screen.dart';
 import '../../screns/employee/widgets/add_employee.dart';
@@ -28,6 +27,44 @@ getListApplication() async {
   getApplication = madeApplication['data'];
   dataApplication = getApplication;
   myStream.add(IntTest.indexScreens);
+}
+
+/// Открытая заявка и её фото — читают `ApplicationPage*`. Жили в экране
+/// задач прораба, снесённом в E03·S08; диспетчеру нужны только они.
+Map listSelectedTaskIdForeman = {};
+List photoSelectedTaskIdForeman = [];
+String onePhotoSelectedTaskId = '';
+
+/// Данные выбранной заявки — `GET /order/{id}/`, следом её фото.
+getListTaskInfoForeman(int userId) async {
+  final res = await Api.get(
+      Uri.parse("${ApiConfig.base}/order/$userId/"),
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      });
+  listSelectedTaskIdForeman = jsonDecode(utf8.decode(res.bodyBytes));
+  await getPhotoSelectedTaskInfoForeman(listSelectedTaskIdForeman['data']['id']);
+}
+
+/// Фото выбранной заявки — `GET /order-photo/{id}?page=1`.
+getPhotoSelectedTaskInfoForeman(int taskId) async {
+  final res = await Api.get(
+      Uri.parse("${ApiConfig.base}/order-photo/$taskId?page=1"),
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      });
+  photoSelectedTaskIdForeman = jsonDecode(utf8.decode(res.bodyBytes))['data'];
+  myStream.add(IntTest.indexScreensDispatcher);
+}
+
+/// Одно фото заявки в полный размер — `GET /order-photo/{id}/`.
+getPhotoTaskSelected(int photoId) async {
+  final res = await Api.get(
+      Uri.parse("${ApiConfig.base}/order-photo/$photoId/"),
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      });
+  onePhotoSelectedTaskId = jsonDecode(utf8.decode(res.bodyBytes))['data']['photo'];
 }
 
 List getApplication = [];

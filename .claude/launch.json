@@ -190,6 +190,124 @@
       ],
       "cwd": "frontend",
       "port": 5608
+    },
+    {
+      "name": "schedules-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/schedules_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5609",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5609
+    },
+    {
+      "name": "schedules-preview-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5611",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "build/preview-schedules"
+      ],
+      "cwd": "frontend",
+      "port": 5611
+    },
+    {
+      "name": "report-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/report_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5612",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5612
+    },
+    {
+      "name": "app-drawer-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/app_drawer_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5613",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5613
+    },
+    {
+      "name": "works-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/works_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5614",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5614
+    },
+    {
+      "name": "works-live",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/works_live.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5615",
+        "--web-hostname",
+        "127.0.0.1",
+        "--dart-define=API_ORIGIN=http://localhost:8080"
+      ],
+      "cwd": "frontend",
+      "port": 5615
+    },
+    {
+      "name": "appointment-order-preview",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-t",
+        "lib/dev/appointment_order_preview.dart",
+        "-d",
+        "web-server",
+        "--web-port",
+        "5616",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "cwd": "frontend",
+      "port": 5616
     }
   ]
 }
