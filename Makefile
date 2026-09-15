@@ -12,8 +12,8 @@
         guard-not-prod
 
 # Пути внутри compose-файлов относительны корня, поэтому --project-directory .
-COMPOSE := docker compose --project-directory . -f infra/docker-compose.yml
-COMPOSE_TEST := docker compose --project-directory . --env-file .test.env -f infra/docker-compose.test.yml
+COMPOSE := docker compose -p lift_app --project-directory . -f infra/docker-compose.yml
+COMPOSE_TEST := docker compose -p lift_app --project-directory . --env-file .test.env -f infra/docker-compose.test.yml
 COMPOSE_PROD := docker compose --project-directory . -f infra/docker-compose.prod.yml
 
 # Защита от сборки образов на прод-сервере.
