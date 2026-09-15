@@ -170,11 +170,22 @@ class _CardView extends StatelessWidget {
             note: _timesNote(state),
           ),
         ),
-      ] else if (state is OrderReady)
-        // У заявки один блок вместо двух: времена ей заменяет строка
-        // «Заведена», а больше система о ней ничего не записывает.
-        WorkSheet(child: WorkOrderBlock(state: state))
-      else
+      ] else if (state is OrderReady) ...<Widget>[
+        // У заявки времена заменяет строка «Заведена», а больше система о
+        // ней ничего не записывает — блок один, чек-листа нет.
+        WorkSheet(child: WorkOrderBlock(state: state)),
+        const SizedBox(height: 12.0),
+        // Дефектный акт заводится и на заявке — механик нашёл его, разбирая
+        // задание, и читается он следом за заданием.
+        WorkSheet(
+          child: WorkDefectsSection(
+            workId: item.id,
+            byOrder: true,
+            objectName: item.objectName,
+            repository: defectsRepository,
+          ),
+        ),
+      ] else
         const WorkSheet(child: WorkSkeleton()),
     ];
 

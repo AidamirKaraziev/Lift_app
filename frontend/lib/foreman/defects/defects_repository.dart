@@ -68,6 +68,23 @@ class DefectsRepository {
         .toList();
   }
 
+  /// Дефекты, заведённые на одной заявке, — для блока в её карточке.
+  ///
+  /// Акт по заявке живёт на своём `order_id`, а не на работе по ТО, поэтому
+  /// ручка отдельная; в остальном — то же, что [byActFact].
+  Future<List<DefectEntry>> byOrder(int orderId) async {
+    final Uri url = Uri.parse(
+      '${ApiConfig.base}/defective-act/by-order/$orderId/',
+    );
+    final http.Response response = await Api.get(url);
+    final List<dynamic> rows = _list(response);
+    return rows
+        .whereType<Map<dynamic, dynamic>>()
+        .map((Map<dynamic, dynamic> row) =>
+            DefectEntry.fromJson(Map<String, dynamic>.from(row)))
+        .toList();
+  }
+
   /// Сколько дефектных актов у объекта за год — для значка-счётчика.
   ///
   /// Отдельной ручкой, а не длиной ленты: считает она ровно тот же запрос

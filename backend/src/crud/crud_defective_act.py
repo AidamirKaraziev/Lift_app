@@ -124,6 +124,28 @@ class CrudDefectiveAct(CRUDBase[DefectiveAct, DefectiveActCreate, DefectiveActUp
         )
         return q, 0, None
 
+    def get_by_order_id(self, *, db: Session, order_id: int, scope: AccessScope):
+        """Дефекты, заведённые на одной заявке.
+
+        Тот же порядок, что и у `get_by_act_fact_id`: карточка заявки не
+        знает ленты объекта, а акт по заявке живёт на своём `order_id`.
+        Клиентские акты, как и там, не показываем.
+        """
+        order, code, _ = crud_orders.get_order_by_id(
+            db=db, order_id=order_id, scope=scope
+        )
+        if code != 0:
+            return None, code, None
+
+        q = (
+            self.scoped_query(db, scope)
+            .filter(DefectiveAct.order_id == order.id)
+            .filter(DefectiveAct.kind == "internal")
+            .order_by(DefectiveAct.created_at.desc(), DefectiveAct.id.desc())
+            .options(joinedload(DefectiveAct.client_acts))
+        )
+        return q, 0, None
+
     def _validate_month(self, month: int) -> int:
         return 0 if 1 <= int(month) <= 12 else self.invalid_month
 

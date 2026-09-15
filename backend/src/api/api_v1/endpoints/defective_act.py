@@ -98,6 +98,31 @@ def get_defective_acts_by_act_fact(
 
 
 @router.get(
+    path="/defective-act/by-order/{order_id}/",
+    response_model=ListOfEntityResponse,
+    name="get_defective_acts_by_order",
+    description="Дефектные акты, заведённые на одной заявке",
+    tags=["Админ панель / Дефектные акты"],
+)
+def get_defective_acts_by_order(
+    request: Request,
+    session=Depends(deps.get_db),
+    order_id: int = Path(..., title="ID заявки"),
+    current_user=Depends(deps.require(Permission.ACT_READ)),
+    scope=Depends(deps.get_read_scope),
+):
+    data_q, code, _ = crud_defective_act.get_by_order_id(
+        db=session, order_id=order_id, scope=scope
+    )
+    get_raise(code=code)
+    return ListOfEntityResponse(
+        data=[
+            getting_defective_act(obj=datum, request=request) for datum in data_q.all()
+        ]
+    )
+
+
+@router.get(
     path="/defective-act/by-object/{object_id}/",
     response_model=ListOfEntityResponse,
     name="get_defective_acts_by_object",

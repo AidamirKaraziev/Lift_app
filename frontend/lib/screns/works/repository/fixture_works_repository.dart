@@ -128,11 +128,12 @@ class FixtureWorksRepository implements WorksRepository {
     final DateTime now = DateTime.now();
     final WorkFilters wide = filters.wide();
     return _items
-        .where((WorkItem i) => (_touchedAt[i.key] ?? i.updatedAt).isAfter(since))
+        .where(
+          (WorkItem i) => (_touchedAt[i.key] ?? i.updatedAt).isAfter(since),
+        )
         .where(
           (WorkItem i) =>
-              !i.isActual ||
-              wide.matches(i, now: now, mySections: mySections),
+              !i.isActual || wide.matches(i, now: now, mySections: mySections),
         )
         .toList();
   }
@@ -215,6 +216,7 @@ class FixtureWorksRepository implements WorksRepository {
         objectAddress: 'ул. Ленина, 12',
         taskText: 'Лифт стоит между этажами, пассажиров нет',
         createdAt: ago(2.6),
+        hasDefect: true,
       ),
       WorkItem(
         id: 1041,
@@ -287,6 +289,7 @@ class FixtureWorksRepository implements WorksRepository {
         createdAt: ago(48),
         acceptedAt: ago(3),
         startedAt: ago(0.9),
+        hasDefect: true,
       ),
       WorkItem(
         id: 1037,
@@ -301,6 +304,7 @@ class FixtureWorksRepository implements WorksRepository {
         acceptedAt: ago(9.5),
         startedAt: ago(9),
         comment: 'Нужна плата вызывной панели, заказал на складе',
+        hasDefect: true,
       ),
       WorkItem(
         id: 7709,
@@ -330,6 +334,7 @@ class FixtureWorksRepository implements WorksRepository {
         acceptedAt: ago(7),
         startedAt: ago(6),
         pausedAt: ago(0.5),
+        hasDefect: true,
       ),
       WorkItem(
         id: 1031,
@@ -360,6 +365,7 @@ class FixtureWorksRepository implements WorksRepository {
         acceptedAt: ago(36),
         startedAt: ago(34),
         closedAt: ago(30),
+        hasDefect: true,
       ),
       WorkItem(
         id: 1028,
@@ -463,6 +469,7 @@ class FixtureWorksRepository implements WorksRepository {
         startedAt: ago(45.5),
         closedAt: ago(45),
         comment: 'Администратор не дал ключ',
+        hasDefect: true,
       ),
       // Архив: мягко удалённое.
       WorkItem(

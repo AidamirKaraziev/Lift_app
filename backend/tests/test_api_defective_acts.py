@@ -467,6 +467,80 @@ def test_defects_of_a_foreign_work_are_forbidden(client_with_db, world, mechanic
     assert response.status_code == 403
 
 
+@pytest.fixture
+def acts_of_two_orders(world, db_session):
+    """Акт на своей заявке, акт на чужой заявке и клиентский потомок своего."""
+    other_order = Order(
+        object_id=world["other_lift"].id,
+        creator_id=1,
+        created_at=datetime.datetime(2026, 5, 11),
+        fault_category_id=2,
+        task_text="чужая заявка",
+    )
+    db_session.add(other_order)
+    db_session.flush()
+
+    own = DefectiveAct(
+        object_id=world["own_lift"].id,
+        order_id=world["own_order"].id,
+        title="скрип дверей по заявке",
+        created_at=datetime.datetime(2026, 5, 12),
+        updated_at=datetime.datetime(2026, 5, 12),
+    )
+    alien = DefectiveAct(
+        object_id=world["other_lift"].id,
+        order_id=other_order.id,
+        title="акт чужой заявки",
+        created_at=datetime.datetime(2026, 5, 12),
+        updated_at=datetime.datetime(2026, 5, 12),
+    )
+    db_session.add_all([own, alien])
+    db_session.flush()
+    child = DefectiveAct(
+        object_id=world["own_lift"].id,
+        order_id=world["own_order"].id,
+        parent_id=own.id,
+        kind="client",
+        title="то же самое клиенту",
+        created_at=datetime.datetime(2026, 5, 13),
+        updated_at=datetime.datetime(2026, 5, 13),
+    )
+    db_session.add(child)
+    db_session.flush()
+    return {"own": own, "alien": alien, "child": child, "other_order": other_order}
+
+
+@pytest.mark.integration
+def test_defects_of_the_order_are_listed(
+    client_with_db, world, mechanic, acts_of_two_orders
+):
+    response = client_with_db.get(
+        f"{API}/defective-act/by-order/{world['own_order'].id}/"
+    )
+
+    assert response.status_code == 200, response.text
+    seen = {item["id"] for item in response.json()["data"]}
+    assert seen == {acts_of_two_orders["own"].id}
+
+
+@pytest.mark.integration
+def test_defects_of_a_foreign_order_are_forbidden(
+    client_with_db, world, mechanic, acts_of_two_orders
+):
+    response = client_with_db.get(
+        f"{API}/defective-act/by-order/{acts_of_two_orders['other_order'].id}/"
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+def test_defects_of_a_missing_order_are_not_found(client_with_db, world, mechanic):
+    response = client_with_db.get(f"{API}/defective-act/by-order/999999/")
+
+    assert response.status_code == 404
+
+
 @pytest.mark.integration
 def test_feed_of_a_foreign_lift_is_forbidden(client_with_db, world, mechanic):
     response = client_with_db.get(

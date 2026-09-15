@@ -1,4 +1,4 @@
-/// Блок «Дефекты» в карточке работы по ТО вместе с запросом за ними.
+/// Блок «Дефекты» в карточке работы — ТО или заявки — вместе с запросом за ними.
 ///
 /// Своим состоянием, а не блоком карточки: `WorkDetailsBloc` знает работу и
 /// её снимки, дефекты же приезжают другой ручкой и другому экрану не нужны —
@@ -22,13 +22,18 @@ class WorkDefectsSection extends StatefulWidget {
   const WorkDefectsSection({
     Key? key,
     required this.workId,
+    this.byOrder = false,
     this.objectName,
     this.repository,
     this.entries,
   }) : super(key: key);
 
-  /// Работа по ТО — она же `act_fact` на бэкенде.
+  /// Работа: `act_fact` на бэкенде, либо `order`, если [byOrder].
   final int workId;
+
+  /// Работа — заявка, и дефекты у неё лежат на `order_id`, а не на работе
+  /// по ТО. Ручка другая, блок тот же.
+  final bool byOrder;
 
   /// Имя объекта: карточка акта берёт его снаружи, в самом акте его нет.
   final String? objectName;
@@ -63,8 +68,9 @@ class _WorkDefectsSectionState extends State<WorkDefectsSection> {
     final DefectsRepository repository =
         widget.repository ?? const DefectsRepository();
     try {
-      final List<DefectEntry> entries =
-          await repository.byActFact(widget.workId);
+      final List<DefectEntry> entries = widget.byOrder
+          ? await repository.byOrder(widget.workId)
+          : await repository.byActFact(widget.workId);
       if (!mounted) return;
       setState(() {
         _entries = entries;

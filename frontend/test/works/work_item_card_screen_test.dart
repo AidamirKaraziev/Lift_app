@@ -6,6 +6,7 @@
 library;
 
 import 'package:els/bloc/user_bloc/user_bloc.dart';
+import 'package:els/foreman/defects/defect_card_screen.dart';
 import 'package:els/foreman/defects/defect_entry.dart';
 import 'package:els/foreman/defects/defects_repository.dart';
 import 'package:els/foreman/defects/work_defects_section.dart';
@@ -69,6 +70,21 @@ class _FakeDefects extends DefectsRepository {
       state: DefectState.created,
     ),
   ];
+
+  @override
+  Future<List<DefectEntry>> byOrder(int orderId) async => const <DefectEntry>[
+    DefectEntry(
+      id: 2,
+      title: 'Обрыв цепи безопасности',
+      source: DefectSource.order,
+      state: DefectState.created,
+      description: 'Найден при разборе заявки.',
+    ),
+  ];
+
+  @override
+  Future<DefectEntry> byId(int id) async =>
+      (await byOrder(0)).firstWhere((DefectEntry e) => e.id == id);
 }
 
 Future<void> _pump(WidgetTester tester, {double width = 1440}) async {
@@ -145,7 +161,28 @@ void main() {
     expect(find.byType(WorkOrderBlock), findsOneWidget);
     expect(find.text('Скрипит дверь'), findsOneWidget);
     expect(find.byType(WorkChecklistBlock), findsNothing);
-    expect(find.byType(WorkDefectsSection), findsNothing);
+  });
+
+  testWidgets('у заявки есть дефекты, и по строке открывается акт', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final WorkItem order = _first(
+      (WorkItem i) =>
+          i.kind == WorkKind.breakdown && i.status == WorkStatus.running,
+    );
+    await _open(tester, order);
+
+    expect(find.byType(WorkDefectsSection), findsOneWidget);
+    expect(find.text('Обрыв цепи безопасности'), findsOneWidget);
+    // Акт ТО у заявки не спрашивается.
+    expect(find.text('Износ ролика'), findsNothing);
+
+    await tester.tap(find.text('Обрыв цепи безопасности'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DefectCardScreen), findsOneWidget);
+    expect(find.text('Найден при разборе заявки.'), findsOneWidget);
   });
 
   testWidgets('«Проверил» в карточке отмечает строку ленты', (tester) async {

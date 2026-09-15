@@ -277,6 +277,12 @@
       "year"
     ]
   },
+  "GET /api/v1/defective-act/by-order/{order_id}/": {
+    "required_body": [],
+    "required_params": [
+      "order_id"
+    ]
+  },
   "GET /api/v1/defective-act/by-planned-to/{planned_to_id}/": {
     "required_body": [],
     "required_params": [
