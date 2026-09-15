@@ -23,4 +23,4 @@
 {"date":"2026-09-13","epic":"E04","stage":"S02 отдать черновик приказа ручкой","area":"back","status":"закрыт","branch":"E04-S02","session":"97409a23","commits":["5d208f5"]}
 {"date": "2026-09-13", "epic": "E04", "stage": "S03 собрать PDF приказа на сервере", "area": "back", "status": "закрыт", "branch": "E04-S03", "session": "d6c0cf70", "commits": ["b45a146"]}
 {"date": "2026-09-15", "epic": "E04", "stage": "S04 подключить диалог к API и выгрузке", "area": "front", "status": "закрыт", "branch": "E04-S04", "session": "c4590ab6", "commits": ["0572cd1"]}
-{"date":"2026-09-15","epic":"E04","stage":"S05 проверить на собранном стеке","area":"front+infra","status":"закрыт","branch":"E04-S05","session":"92bc323f","commits":[]}
+{"date": "2026-09-15", "epic": "E04", "stage": "S05 проверить на собранном стеке", "area": "front+infra", "status": "закрыт", "branch": "E04-S05", "session": "92bc323f", "commits": ["d08fd14"]}
