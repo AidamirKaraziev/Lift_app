@@ -1,14 +1,14 @@
 /// Черновик приказа ↔ JSON ручек `draft` и `pdf`.
 ///
 /// Ответ как в снимке `backend/tests/snapshots/openapi_surface.json`: строки
-/// без данных приходят `null`, дата — секундами местной полуночи.
+/// без данных приходят `null`, дата — секундами полуночи по UTC.
 library;
 
 import 'package:els/screns/object/appointment_order/model/appointment_order_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final int _midnight =
-    DateTime(2026, 9, 15).millisecondsSinceEpoch ~/ 1000;
+    DateTime.utc(2026, 9, 15).millisecondsSinceEpoch ~/ 1000;
 
 Map<String, dynamic> _response() => <String, dynamic>{
       'number': '',
@@ -33,7 +33,7 @@ Map<String, dynamic> _response() => <String, dynamic>{
     };
 
 void main() {
-  test('fromJson: поля, null → пусто, дата местная', () {
+  test('fromJson: поля, null → пусто, дата — день по UTC', () {
     final AppointmentOrderDraft draft =
         AppointmentOrderDraft.fromJson(_response());
 
@@ -67,7 +67,7 @@ void main() {
     expect(draft.lifts, isEmpty);
   });
 
-  test('toJson: тот же формат, что у ответа; дата — секунды полуночи', () {
+  test('toJson: тот же формат, что у ответа; дата — секунды полуночи UTC', () {
     final AppointmentOrderDraft edited = AppointmentOrderDraft.fromJson(
       _response(),
     ).copyWith(number: '17', city: 'Краснодар', date: DateTime(2026, 9, 20, 15, 30));
@@ -76,7 +76,7 @@ void main() {
 
     expect(json['number'], '17');
     expect(json['city'], 'Краснодар');
-    expect(json['date'], DateTime(2026, 9, 20).millisecondsSinceEpoch ~/ 1000);
+    expect(json['date'], DateTime.utc(2026, 9, 20).millisecondsSinceEpoch ~/ 1000);
     expect(json['signer_position'], 'Генеральный директор');
     expect(json['foreman'], <String, dynamic>{
       'full_name': 'Петров Иван Сергеевич',

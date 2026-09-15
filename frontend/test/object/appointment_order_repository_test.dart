@@ -118,6 +118,18 @@ void main() {
     );
   });
 
+  test('502 от nginx — тоже «Не удалось связаться с сервером»', () async {
+    expect(
+      () => _repository(null, status: 502).fetchDraft(1),
+      throwsA(
+        isA<AppointmentOrderException>().having(
+            (AppointmentOrderException e) => e.message,
+            'message',
+            'Не удалось связаться с сервером'),
+      ),
+    );
+  });
+
   test('сеть упала — «Не удалось связаться с сервером»', () async {
     final AppointmentOrderRepository repository = AppointmentOrderRepository(
       send: (Uri _) async => throw http.ClientException('down'),

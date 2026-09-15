@@ -98,6 +98,12 @@ class AppointmentOrderRepository {
         );
       case 404:
         throw const AppointmentOrderException('Объект не найден');
+      case 502:
+      case 503:
+      case 504:
+        // На стеке перед бэком стоит nginx: выключенный бэк — это не обрыв
+        // сети, а 502 от прокси. Для человека разницы нет.
+        throw const AppointmentOrderException('Не удалось связаться с сервером');
       default:
         throw AppointmentOrderException(
           'Сервер ответил ошибкой ${response.statusCode}',

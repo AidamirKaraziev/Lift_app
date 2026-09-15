@@ -56,8 +56,9 @@ class AppointmentOrderDraft {
   ///
   /// Контракт — `backend/src/schemas/appointment_order.py`: строки, которых
   /// в базе нет, приходят `null`; здесь они становятся пустыми — диалог
-  /// печатает прочерк, а не слово `null`. `date` — секунды местной полуночи,
-  /// как `to_timestamp(date.today())` на бэке.
+  /// печатает прочерк, а не слово `null`. `date` — секунды полуночи по UTC:
+  /// бэк собирает и читает метку в UTC (`date_from_timestamp`), а не в поясе
+  /// браузера — местная полночь восточнее Гринвича давала бы в PDF «вчера».
   factory AppointmentOrderDraft.fromJson(Map<String, dynamic> json) {
     final Object? rawLifts = json['lifts'];
     return AppointmentOrderDraft(
@@ -97,17 +98,20 @@ class AppointmentOrderDraft {
         ],
       };
 
-  /// Секунды с эпохи → местная дата. Бэк считает полночь по местному
-  /// времени и читает её так же; UTC здесь дал бы «вчера» восточнее Гринвича.
+  /// Секунды с эпохи → календарный день. Метка читается по UTC, как её
+  /// собрал бэк; день переносится в местный [DateTime] без сдвига, чтобы
+  /// поле даты и календарь показывали то же число, что попадёт в PDF.
   static DateTime dateFromTimestamp(Object? raw) {
     final int? seconds = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
     if (seconds == null) return DateTime.now();
-    return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+    final DateTime utc =
+        DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+    return DateTime(utc.year, utc.month, utc.day);
   }
 
-  /// Местная полночь выбранного дня в секундах — зеркально [dateFromTimestamp].
+  /// Полночь выбранного дня по UTC в секундах — зеркально [dateFromTimestamp].
   static int timestampFromDate(DateTime date) {
-    return DateTime(date.year, date.month, date.day).millisecondsSinceEpoch ~/
+    return DateTime.utc(date.year, date.month, date.day).millisecondsSinceEpoch ~/
         1000;
   }
 
