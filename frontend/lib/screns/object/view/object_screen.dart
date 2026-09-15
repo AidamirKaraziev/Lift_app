@@ -89,7 +89,6 @@ getListObjectInfo(int userId) async {
     var vova = jsonDecode(utf8.decode(res.bodyBytes));
     listSelectedObject = vova;
     print(listSelectedObject);
-    // print(listSelectedObject['data']['letter_of_appointment']);
     // print(listSelectedObject['data']['act_pto']);
     // print(listSelectedObject['data']['name']);
     // print(listSelectedObject['data']['foreman_id']);
