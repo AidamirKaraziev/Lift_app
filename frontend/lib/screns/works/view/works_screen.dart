@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../foreman/defects/defects_repository.dart';
 import '../../../helper/class_colors.dart';
 import '../../../navigation/shell_drawer.dart';
+import '../../in_progress_works/repository/work_details_repository.dart';
 import '../../schedule/view/schedule_section.dart' show scheduleShowsLeading;
 import '../bloc/works_bloc.dart';
 import '../models/work_counts.dart';
@@ -17,6 +19,7 @@ import '../repository/works_repository.dart';
 import '../widgets/work_filter_chips.dart';
 import '../widgets/work_group_header.dart';
 import '../widgets/work_row_tile.dart';
+import 'work_item_card_screen.dart';
 
 /// Экран «Работы»: заявки и акты ТО одной лентой.
 ///
@@ -32,6 +35,8 @@ class WorksScreen extends StatelessWidget {
     required this.repository,
     this.drawer = const ShellDrawer(),
     this.onOpen,
+    this.detailsRepository,
+    this.defectsRepository,
     this.tick = const Duration(seconds: 30),
     this.poll = const Duration(seconds: 15),
   }) : super(key: key);
@@ -42,8 +47,14 @@ class WorksScreen extends StatelessWidget {
   /// единственный путь из «Работ» куда-то ещё.
   final Widget drawer;
 
-  /// Клик по строке. Пусто — строка не нажимается: карточка работы — позже.
+  /// Клик по строке. Пусто — открывается карточка работы
+  /// (`WorkItemCardScreen`); своя обработка — для тестов и превью.
   final ValueChanged<WorkItem>? onOpen;
+
+  /// Откуда карточка работы берёт подробности и дефекты. Пусто — живые
+  /// ручки; подменяются на фикстуре и в тестах.
+  final WorkDetailsRepository? detailsRepository;
+  final DefectsRepository? defectsRepository;
 
   /// Как часто перерисовывать таймеры строк. Один таймер на ленту, а не в
   /// каждой строке. `null` — не тикать: так экран собирается в тесте, где
@@ -63,6 +74,8 @@ class WorksScreen extends StatelessWidget {
       child: _WorksBody(
         drawer: drawer,
         onOpen: onOpen,
+        detailsRepository: detailsRepository,
+        defectsRepository: defectsRepository,
         tick: tick,
         poll: poll,
       ),
@@ -75,12 +88,16 @@ class _WorksBody extends StatefulWidget {
     Key? key,
     required this.drawer,
     required this.onOpen,
+    required this.detailsRepository,
+    required this.defectsRepository,
     required this.tick,
     required this.poll,
   }) : super(key: key);
 
   final Widget drawer;
   final ValueChanged<WorkItem>? onOpen;
+  final WorkDetailsRepository? detailsRepository;
+  final DefectsRepository? defectsRepository;
   final Duration? tick;
   final Duration? poll;
 
@@ -190,6 +207,22 @@ class _WorksBodyState extends State<_WorksBody> with WidgetsBindingObserver {
 
   void _review(WorkItem item) => _bloc.add(WorkReviewed(item));
 
+  /// Карточка работы поверх ленты. Отметка «Проверил» из карточки идёт в тот
+  /// же блок, что и кнопка в строке: лента под карточкой перечитывает строку
+  /// сама, и по возвращении прораб видит её уже отмеченной.
+  void _open(WorkItem item) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => WorkItemCardScreen(
+          item: item,
+          onReview: item.status.isClosed ? () => _review(item) : null,
+          repository: widget.detailsRepository,
+          defectsRepository: widget.defectsRepository,
+        ),
+      ),
+    );
+  }
+
   void _say(String text) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -241,7 +274,7 @@ class _WorksBodyState extends State<_WorksBody> with WidgetsBindingObserver {
         WorkRowTile(
           item: item,
           now: _now,
-          onTap: widget.onOpen == null ? null : () => widget.onOpen!(item),
+          onTap: () => (widget.onOpen ?? _open)(item),
           onAssign: () => _assign(item),
           onCall: () => _call(item),
           onReview: () => _review(item),
