@@ -4,13 +4,16 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../helper/class_colors.dart';
 import '../screns/object/appointment_order/fixture_appointment_order.dart';
+import '../screns/object/appointment_order/model/appointment_order_draft.dart';
+import '../screns/object/appointment_order/repository/appointment_order_repository.dart';
 import '../screns/object/appointment_order/view/appointment_order_dialog.dart';
 
 /// Набросок диалога «Приказ о назначении» — вид без сервера и без входа.
 ///
 /// Кадра в макете нет, и по правилу «макет утверждается до логики» диалог
 /// показывается отдельно на фикстуре: три расклада переключаются кнопками,
-/// первый открывается сам.
+/// первый открывается сам. «Скачать PDF» секунду крутит индикатор; в
+/// раскладе «Нет механика» — заканчивается ошибкой, чтобы видеть и её.
 ///
 /// Запуск:
 ///
@@ -61,6 +64,14 @@ class _FixturePickerState extends State<_FixturePicker> {
     return showAppointmentOrderDialog(
       context,
       draft: buildAppointmentOrderFixture(fixture),
+      onDownload: (AppointmentOrderDraft _) async {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (fixture == AppointmentOrderFixture.noMechanic) {
+          throw const AppointmentOrderException(
+            'Не удалось связаться с сервером',
+          );
+        }
+      },
     );
   }
 

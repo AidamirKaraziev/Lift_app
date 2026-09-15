@@ -1859,7 +1859,7 @@ class _ObjectPageState extends State<ObjectPage> {
                                       children: [
                                         /// Приказ о назначении — E04
                                         AppointmentOrderButton(
-                                          object: Map<String, dynamic>.from(viewObjectPage),
+                                          objectId: AppointmentOrderButton.objectIdFrom(viewObjectPage['id']),
                                         ),
 
                                         /// Письмо о назначении

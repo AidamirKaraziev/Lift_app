@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../helper/class_colors.dart';
 import '../model/appointment_order_draft.dart';
+import '../repository/appointment_order_repository.dart';
 
 /// Диалог приказа о назначении ответственных за объект.
 ///
@@ -11,12 +12,14 @@ import '../model/appointment_order_draft.dart';
 /// руками. Нет человека или лифтов — диалог говорит об этом словами, а не
 /// прячет строку.
 ///
-/// [onDownload] получает черновик с правками; пока ручки PDF нет
-/// (S03–S04), передавать нечего — кнопка тогда объясняет это подсказкой.
+/// [onDownload] получает черновик с правками и собирает PDF; пока он
+/// работает, кнопка выключена и крутит индикатор. Бросил
+/// [AppointmentOrderException] — текст печатается в диалоге, диалог остаётся
+/// открытым: правки не пропадают, можно нажать ещё раз.
 Future<void> showAppointmentOrderDialog(
   BuildContext context, {
   required AppointmentOrderDraft draft,
-  Future<void> Function(AppointmentOrderDraft draft)? onDownload,
+  required Future<void> Function(AppointmentOrderDraft draft) onDownload,
 }) {
   return showDialog<void>(
     context: context,
@@ -29,11 +32,11 @@ class AppointmentOrderDialog extends StatefulWidget {
   const AppointmentOrderDialog({
     Key? key,
     required this.draft,
-    this.onDownload,
+    required this.onDownload,
   }) : super(key: key);
 
   final AppointmentOrderDraft draft;
-  final Future<void> Function(AppointmentOrderDraft draft)? onDownload;
+  final Future<void> Function(AppointmentOrderDraft draft) onDownload;
 
   @override
   State<AppointmentOrderDialog> createState() => _AppointmentOrderDialogState();
@@ -45,6 +48,12 @@ class _AppointmentOrderDialogState extends State<AppointmentOrderDialog> {
   late final TextEditingController _signerPosition;
   late final TextEditingController _signerName;
   late DateTime _date;
+
+  /// Идёт сборка PDF — вторая отправка не уйдёт, пока не ответила первая.
+  bool _busy = false;
+
+  /// Что ответила ручка словами; `null` — ошибки нет.
+  String? _error;
 
   @override
   void initState() {
@@ -86,15 +95,19 @@ class _AppointmentOrderDialogState extends State<AppointmentOrderDialog> {
   }
 
   Future<void> _download() async {
-    final Future<void> Function(AppointmentOrderDraft)? handler =
-        widget.onDownload;
-    if (handler == null) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('PDF появится в следующем этапе')),
-      );
-      return;
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.onDownload(_edited);
+    } on AppointmentOrderException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    await handler(_edited);
   }
 
   @override
@@ -126,61 +139,18 @@ class _AppointmentOrderDialogState extends State<AppointmentOrderDialog> {
       ),
       content: SizedBox(
         width: 560.0,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _FieldRow(
-                flexes: const <int>[3, 4, 5],
-                children: <Widget>[
-                  _EditableField(
-                    label: 'Номер',
-                    hint: '—',
-                    controller: _number,
-                  ),
-                  _DateField(date: _date, onTap: _pickDate),
-                  _EditableField(label: 'Город', controller: _city),
-                ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Flexible(child: SingleChildScrollView(child: _form(draft))),
+            // Вне прокрутки: длинный перечень не спрячет ответ ручки.
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: _ErrorLine(_error!),
               ),
-              const _SectionTitle('Подписант'),
-              _ReadOnlyField(label: 'Организация', value: draft.organization),
-              const SizedBox(height: 12.0),
-              _FieldRow(
-                flexes: const <int>[5, 7],
-                children: <Widget>[
-                  _EditableField(
-                    label: 'Должность',
-                    controller: _signerPosition,
-                  ),
-                  _EditableField(
-                    label: 'ФИО подписанта',
-                    controller: _signerName,
-                  ),
-                ],
-              ),
-              const _SectionTitle('Ответственные'),
-              _PersonRow(
-                role: 'Прораб',
-                person: draft.foreman,
-                missing: 'Прораб не закреплён за объектом',
-              ),
-              const SizedBox(height: 12.0),
-              _PersonRow(
-                role: 'Электромеханик',
-                person: draft.mechanic,
-                missing: 'Электромеханик не закреплён за объектом',
-              ),
-              const _SectionTitle('Оборудование'),
-              _ReadOnlyField(label: 'Адрес объекта', value: draft.address),
-              const SizedBox(height: 12.0),
-              if (draft.lifts.isEmpty)
-                const _Notice('У объекта нет лифтов')
-              else
-                for (final AppointmentLift lift in draft.lifts) _LiftRow(lift),
-              const SizedBox(height: 8.0),
-            ],
-          ),
+          ],
         ),
       ),
       actionsPadding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 16.0),
@@ -191,18 +161,87 @@ class _AppointmentOrderDialogState extends State<AppointmentOrderDialog> {
           child: const Text('Отмена'),
         ),
         ElevatedButton.icon(
-          onPressed: _download,
+          onPressed: _busy ? null : _download,
           style: ElevatedButton.styleFrom(
             backgroundColor: ColorApp.myColorGreenAuth,
             foregroundColor: ColorApp.myColorWhite,
+            disabledBackgroundColor: ColorApp.myColorGreenAuth,
+            disabledForegroundColor: ColorApp.myColorWhite,
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8.0),
             ),
           ),
-          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18.0),
-          label: const Text('Скачать PDF'),
+          icon: _busy
+              ? const SizedBox(
+                  width: 16.0,
+                  height: 16.0,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.0,
+                    color: ColorApp.myColorWhite,
+                  ),
+                )
+              : const Icon(Icons.picture_as_pdf_outlined, size: 18.0),
+          label: Text(_busy ? 'Собираем PDF…' : 'Скачать PDF'),
         ),
+      ],
+    );
+  }
+
+  /// Поля приказа — всё, что прокручивается.
+  Widget _form(AppointmentOrderDraft draft) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _FieldRow(
+          flexes: const <int>[3, 4, 5],
+          children: <Widget>[
+            _EditableField(
+              label: 'Номер',
+              hint: '—',
+              controller: _number,
+            ),
+            _DateField(date: _date, onTap: _pickDate),
+            _EditableField(label: 'Город', controller: _city),
+          ],
+        ),
+        const _SectionTitle('Подписант'),
+        _ReadOnlyField(label: 'Организация', value: draft.organization),
+        const SizedBox(height: 12.0),
+        _FieldRow(
+          flexes: const <int>[5, 7],
+          children: <Widget>[
+            _EditableField(
+              label: 'Должность',
+              controller: _signerPosition,
+            ),
+            _EditableField(
+              label: 'ФИО подписанта',
+              controller: _signerName,
+            ),
+          ],
+        ),
+        const _SectionTitle('Ответственные'),
+        _PersonRow(
+          role: 'Прораб',
+          person: draft.foreman,
+          missing: 'Прораб не закреплён за объектом',
+        ),
+        const SizedBox(height: 12.0),
+        _PersonRow(
+          role: 'Электромеханик',
+          person: draft.mechanic,
+          missing: 'Электромеханик не закреплён за объектом',
+        ),
+        const _SectionTitle('Оборудование'),
+        _ReadOnlyField(label: 'Адрес объекта', value: draft.address),
+        const SizedBox(height: 12.0),
+        if (draft.lifts.isEmpty)
+          const _Notice('У объекта нет лифтов')
+        else
+          for (final AppointmentLift lift in draft.lifts) _LiftRow(lift),
+        const SizedBox(height: 8.0),
       ],
     );
   }
@@ -480,6 +519,30 @@ class _Notice extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ответ ручки словами — над кнопками, вне прокрутки.
+class _ErrorLine extends StatelessWidget {
+  const _ErrorLine(this.text, {Key? key}) : super(key: key);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Icon(Icons.error_outline, size: 16.0, color: ColorApp.myColorRed),
+        const SizedBox(width: 8.0),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13.0, color: ColorApp.myColorRed),
+          ),
+        ),
+      ],
     );
   }
 }

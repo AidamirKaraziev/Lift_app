@@ -52,34 +52,63 @@ class AppointmentOrderDraft {
   /// Оборудование, которое приказ закрепляет за обоими.
   final List<AppointmentLift> lifts;
 
-  /// Черновик из карточки объекта, как она лежит в памяти приложения.
+  /// Черновик из ответа `GET /object/{id}/appointment-order/draft`.
   ///
-  /// Подрядчик держит объект нетипизированной картой; здесь берётся ровно
-  /// то, что карточка и так показывает. Реквизиты приказа в карте не живут
-  /// — их отдаст ручка черновика в S02, а до неё они пусты.
-  factory AppointmentOrderDraft.fromObjectMap(Map<String, dynamic> object) {
-    final Map<String, dynamic>? model =
-        _map(object['factory_model_id']);
-    final int? capacity = _int(object['load_capacity']);
-    final String type = _map(model?['type_object_id'])?['name']?.toString() ?? '';
-    final String brand = model?['model']?.toString() ?? '';
+  /// Контракт — `backend/src/schemas/appointment_order.py`: строки, которых
+  /// в базе нет, приходят `null`; здесь они становятся пустыми — диалог
+  /// печатает прочерк, а не слово `null`. `date` — секунды местной полуночи,
+  /// как `to_timestamp(date.today())` на бэке.
+  factory AppointmentOrderDraft.fromJson(Map<String, dynamic> json) {
+    final Object? rawLifts = json['lifts'];
     return AppointmentOrderDraft(
-      number: '',
-      date: DateTime.now(),
-      city: '',
-      address: object['address']?.toString() ?? '',
-      organization: '',
-      signerPosition: '',
-      signerName: '',
-      foreman: _person(object['foreman_id'], AppointmentPerson.foremanPosition),
-      mechanic:
-          _person(object['mechanic_id'], AppointmentPerson.mechanicPosition),
-      lifts: model == null && capacity == null
-          ? const <AppointmentLift>[]
-          : <AppointmentLift>[
-              AppointmentLift(type: type, brand: brand, loadCapacityKg: capacity),
-            ],
+      number: _string(json['number']),
+      date: dateFromTimestamp(json['date']),
+      city: _string(json['city']),
+      address: _string(json['address']),
+      organization: _string(json['organization']),
+      signerPosition: _string(json['signer_position']),
+      signerName: _string(json['signer_name']),
+      foreman: AppointmentPerson.fromJson(json['foreman']),
+      mechanic: AppointmentPerson.fromJson(json['mechanic']),
+      lifts: rawLifts is List
+          ? <AppointmentLift>[
+              for (final Object? item in rawLifts)
+                if (item is Map)
+                  AppointmentLift.fromJson(Map<String, dynamic>.from(item)),
+            ]
+          : const <AppointmentLift>[],
     );
+  }
+
+  /// Тело `POST /object/{id}/appointment-order/pdf` — тот же формат, что у
+  /// черновика; `null` не отдаём, бэк печатает пустое прочерком.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'number': number,
+        'date': timestampFromDate(date),
+        'city': city,
+        'address': address,
+        'organization': organization,
+        'signer_position': signerPosition,
+        'signer_name': signerName,
+        'foreman': foreman?.toJson(),
+        'mechanic': mechanic?.toJson(),
+        'lifts': <Map<String, dynamic>>[
+          for (final AppointmentLift lift in lifts) lift.toJson(),
+        ],
+      };
+
+  /// Секунды с эпохи → местная дата. Бэк считает полночь по местному
+  /// времени и читает её так же; UTC здесь дал бы «вчера» восточнее Гринвича.
+  static DateTime dateFromTimestamp(Object? raw) {
+    final int? seconds = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+    if (seconds == null) return DateTime.now();
+    return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+  }
+
+  /// Местная полночь выбранного дня в секундах — зеркально [dateFromTimestamp].
+  static int timestampFromDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day).millisecondsSinceEpoch ~/
+        1000;
   }
 
   AppointmentOrderDraft copyWith({
@@ -103,34 +132,39 @@ class AppointmentOrderDraft {
     );
   }
 
-  static AppointmentPerson? _person(Object? raw, String position) {
-    final String? name = _map(raw)?['name']?.toString();
-    if (name == null || name.isEmpty) return null;
-    return AppointmentPerson(fullName: name, position: position);
-  }
-
-  static Map<String, dynamic>? _map(Object? raw) {
-    return raw is Map ? Map<String, dynamic>.from(raw) : null;
-  }
-
-  static int? _int(Object? raw) {
-    if (raw is int) return raw;
-    return int.tryParse(raw?.toString() ?? '');
-  }
+  static String _string(Object? raw) => raw?.toString() ?? '';
 }
 
 /// Человек, которого приказ назначает ответственным.
 class AppointmentPerson {
   const AppointmentPerson({required this.fullName, required this.position});
 
-  /// Должность прораба в тексте приказа — как в образце.
-  static const String foremanPosition = 'прораб сервисного участка';
+  /// Должности в тексте приказа — как в образце, сразу в родительном
+  /// падеже: они идут после «Назначить …» (`FOREMAN_POSITION` на бэке).
+  static const String foremanPosition = 'прораба сервисного участка';
 
-  /// Должность механика в тексте приказа — как в образце.
-  static const String mechanicPosition = 'электромеханик по лифтам';
+  /// См. [foremanPosition] (`MECHANIC_POSITION` на бэке).
+  static const String mechanicPosition = 'электромеханика по лифтам';
 
   final String fullName;
   final String position;
+
+  /// `null` в ответе — за объектом никто не закреплён; без ФИО тоже некого
+  /// назначать.
+  static AppointmentPerson? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final String name = raw['full_name']?.toString() ?? '';
+    if (name.isEmpty) return null;
+    return AppointmentPerson(
+      fullName: name,
+      position: raw['position']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'full_name': fullName,
+        'position': position,
+      };
 }
 
 /// Единица оборудования в перечне приказа.
@@ -149,6 +183,22 @@ class AppointmentLift {
 
   /// Грузоподъёмность, кг; `null` — в карточке не заполнена.
   final int? loadCapacityKg;
+
+  factory AppointmentLift.fromJson(Map<String, dynamic> json) {
+    final Object? capacity = json['load_capacity_kg'];
+    return AppointmentLift(
+      type: json['type']?.toString() ?? '',
+      brand: json['brand']?.toString() ?? '',
+      loadCapacityKg:
+          capacity is int ? capacity : int.tryParse(capacity?.toString() ?? ''),
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'type': type,
+        'brand': brand,
+        'load_capacity_kg': loadCapacityKg,
+      };
 
   /// Строка перечня как в образце: «Лифт Пассажирский, Wellmaks, г/п 400 кг.»
   String get line {

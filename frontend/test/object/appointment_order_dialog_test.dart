@@ -1,11 +1,14 @@
 /// Диалог приказа о назначении: что показывает и что отдаёт по «Скачать PDF».
 ///
 /// Сети здесь нет — черновик берётся из фикстуры, а «Скачать PDF» получает
-/// правки через колбэк.
+/// правки через колбэк; он же изображает долгую сборку и ошибку ручки.
 library;
+
+import 'dart:async';
 
 import 'package:els/screns/object/appointment_order/fixture_appointment_order.dart';
 import 'package:els/screns/object/appointment_order/model/appointment_order_draft.dart';
+import 'package:els/screns/object/appointment_order/repository/appointment_order_repository.dart';
 import 'package:els/screns/object/appointment_order/view/appointment_order_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,6 +19,8 @@ Future<void> _pumpDialog(
   AppointmentOrderDraft draft, {
   Future<void> Function(AppointmentOrderDraft)? onDownload,
 }) async {
+  final Future<void> Function(AppointmentOrderDraft) download =
+      onDownload ?? (AppointmentOrderDraft _) async {};
   await tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -26,7 +31,7 @@ Future<void> _pumpDialog(
             onPressed: () => showAppointmentOrderDialog(
               context,
               draft: draft,
-              onDownload: onDownload,
+              onDownload: download,
             ),
             child: const Text('open'),
           ),
@@ -86,24 +91,59 @@ void main() {
     expect(sent!.lifts, hasLength(2));
   });
 
-  test('fromObjectMap берёт из карточки адрес, людей и лифт', () {
-    final AppointmentOrderDraft draft = AppointmentOrderDraft.fromObjectMap(
-      <String, dynamic>{
-        'address': 'ул. Кожевенная, 66',
-        'load_capacity': 400,
-        'factory_model_id': <String, dynamic>{
-          'model': 'Wellmaks',
-          'type_object_id': <String, dynamic>{'name': 'Лифт Пассажирский'},
-        },
-        'foreman_id': <String, dynamic>{'name': 'Петров И. С.'},
-        'mechanic_id': null,
+  testWidgets('пока PDF собирается — кнопка выключена и крутит индикатор',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 900));
+    final Completer<void> building = Completer<void>();
+    int calls = 0;
+    await _pumpDialog(
+      tester,
+      buildAppointmentOrderFixture(AppointmentOrderFixture.full),
+      onDownload: (AppointmentOrderDraft _) {
+        calls++;
+        return building.future;
       },
     );
 
-    expect(draft.address, 'ул. Кожевенная, 66');
-    expect(draft.foreman?.fullName, 'Петров И. С.');
-    expect(draft.mechanic, isNull);
-    expect(draft.lifts.single.line, 'Лифт Пассажирский, Wellmaks, г/п 400 кг.');
-    expect(draft.number, isEmpty);
+    await tester.tap(find.text('Скачать PDF'));
+    await tester.pump();
+
+    expect(find.text('Собираем PDF…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    final ElevatedButton button = tester.widget(
+      find.ancestor(
+        of: find.text('Собираем PDF…'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(button.onPressed, isNull);
+
+    building.complete();
+    await tester.pumpAndSettle();
+
+    expect(calls, 1);
+    expect(find.text('Скачать PDF'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('ошибка ручки — текст в диалоге, правки на месте',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 900));
+    await _pumpDialog(
+      tester,
+      buildAppointmentOrderFixture(AppointmentOrderFixture.full),
+      onDownload: (AppointmentOrderDraft _) async {
+        throw const AppointmentOrderException('Объект не найден');
+      },
+    );
+
+    await tester.enterText(find.widgetWithText(TextField, '').first, '17');
+    await tester.tap(find.text('Скачать PDF'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Объект не найден'), findsOneWidget);
+    expect(find.text('Приказ о назначении'), findsOneWidget);
+    expect(find.text('17'), findsOneWidget);
+    expect(find.text('Скачать PDF'), findsOneWidget);
   });
 }
